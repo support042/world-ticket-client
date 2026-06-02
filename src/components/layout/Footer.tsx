@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { Shield, RefreshCw } from 'lucide-react'
 
 export default function Footer() {
   return (

@@ -1,11 +1,11 @@
 import * as z from 'zod';
 
-// Base Team schema
-const teamSchema = z.object({
-  name: z.string().min(1, "Team name is required"),
-  code: z.string().length(3, "Team code must be exactly 3 characters").toUpperCase(),
-  flag: z.string().min(1, "Flag icon/emoji is required")
-});
+// Base Team schema (currently unused but available for future use)
+// const teamSchema = z.object({
+//   name: z.string().min(1, "Team name is required"),
+//   code: z.string().length(3, "Team code must be exactly 3 characters").toUpperCase(),
+//   flag: z.string().min(1, "Flag icon/emoji is required")
+// });
 
 // Event Settings schema
 const eventSettingsSchema = z.object({

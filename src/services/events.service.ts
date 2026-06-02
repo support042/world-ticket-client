@@ -27,7 +27,7 @@ export const eventsService = {
   },
 
   // GET /events
-  getEvents: async (filters?: Partial<EventFilters>, search?: string, page: number = 1, limit: number = 20): Promise<GetEventsResponse> => {
+  getEvents: async (_filters?: Partial<EventFilters>, search?: string, page: number = 1, limit: number = 20): Promise<GetEventsResponse> => {
     if (USE_SHADOW) {
       await new Promise(resolve => setTimeout(resolve, 300));
       // Normally, your backend handles the filtering using SQL/NoSQL.

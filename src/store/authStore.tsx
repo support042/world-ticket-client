@@ -98,7 +98,7 @@ export const useAuthStore = create<AuthState>()(
 
 export const useAdminStore = create<AdminState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       admin: null,
       token: null,
       isAdminAuthenticated: false,
@@ -150,4 +150,4 @@ export const useAdminStore = create<AdminState>()(
       })
     }
   )
-)
+)

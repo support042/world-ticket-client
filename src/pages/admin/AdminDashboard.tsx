@@ -198,22 +198,22 @@ export default function AdminDashboard() {
     setShowDeleteDialog(true)
   }
 
-  const openAddSection = (eventId: string) => {
-    setSelectedEventId(eventId)
-    setEditingSection(null)
-    setShowSectionDialog(true)
-  }
+  // const openAddSection = (eventId: string) => {
+  //   setSelectedEventId(eventId)
+  //   setEditingSection(null)
+  //   setShowSectionDialog(true)
+  // }
 
-  const openEditSection = (eventId: string, section: Section) => {
-    setSelectedEventId(eventId)
-    setEditingSection(section)
-    setShowSectionDialog(true)
-  }
+  // const openEditSection = (eventId: string, section: Section) => {
+  //   setSelectedEventId(eventId)
+  //   setEditingSection(section)
+  //   setShowSectionDialog(true)
+  // }
 
-  const openDeleteSection = (eventId: string, sectionId: string) => {
-    setDeleteTarget({ type: 'section', id: sectionId, eventId })
-    setShowDeleteDialog(true)
-  }
+  // const openDeleteSection = (eventId: string, sectionId: string) => {
+  //   setDeleteTarget({ type: 'section', id: sectionId, eventId })
+  //   setShowDeleteDialog(true)
+  // }
 
   return (
     <div className="min-h-screen bg-muted/30 pb-20">
@@ -279,9 +279,6 @@ export default function AdminDashboard() {
                       event={event}
                       onEditEvent={openEditEvent}
                       onDeleteEvent={openDeleteEvent}
-                      onAddSection={openAddSection}
-                      onEditSection={openEditSection}
-                      onDeleteSection={openDeleteSection}
                     />
                   ))}
 
@@ -366,4 +363,4 @@ export default function AdminDashboard() {
       />
     </div>
   )
-}
+}

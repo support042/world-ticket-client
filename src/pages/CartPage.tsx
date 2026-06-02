@@ -16,11 +16,12 @@ export default function CartPage() {
   const allFees = items.reduce((acc, item) => {
     const fees = calculateFees(item.subtotal)
     return {
-      serviceFee: acc.serviceFee + fees.serviceFee,
-      processingFee: acc.processingFee + fees.processingFee,
+      tax: acc.tax + fees.tax,
+      handlingFee: acc.handlingFee + fees.handlingFee,
+      bookingFee: acc.bookingFee + fees.bookingFee,
       total: acc.total + fees.total
     }
-  }, { serviceFee: 0, processingFee: 0, total: 0 })
+  }, { tax: 0, handlingFee: 0, bookingFee: 0, total: 0 })
 
   if (items.length === 0) {
     return (
@@ -138,12 +139,16 @@ export default function CartPage() {
                   <span className="font-bold font-mono">${subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Service Fee</span>
-                  <span className="font-bold font-mono">${allFees.serviceFee.toFixed(2)}</span>
+                  <span className="text-muted-foreground">Tax</span>
+                  <span className="font-bold font-mono">${allFees.tax.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Order Processing Fee</span>
-                  <span className="font-bold font-mono">${allFees.processingFee.toFixed(2)}</span>
+                  <span className="text-muted-foreground">Handling Fee</span>
+                  <span className="font-bold font-mono">${allFees.handlingFee.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Booking Fee</span>
+                  <span className="font-bold font-mono">${allFees.bookingFee.toFixed(2)}</span>
                 </div>
               </div>
               

@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api';
-import type { SignupData, User } from '@/types';
+import type { User } from '@/types';
 
 // The shadow variable controls whether we use the real API or mock responses.
 // Eventually this will be `const USE_SHADOW = import.meta.env.VITE_USE_MOCKS === 'true';`

@@ -26,7 +26,7 @@ export interface AuthState {
   error: string | null
   token: string | null
   login: (email: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>
-  signup: (userData: SignupData) => Promise<{ success: boolean; user?: User }>
+  signup: (userData: SignupData) => Promise<{ success: boolean; user?: User; error?: string }>
   logout: () => void
   updateProfile: (updates: Partial<User>) => void
   clearError: () => void

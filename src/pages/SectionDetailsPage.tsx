@@ -214,7 +214,7 @@ export default function SectionDetailsPage() {
 
                     {/* Features */}
                     <div className="flex flex-wrap gap-2">
-                        {selectedSection.features.map((feature, idx) => (
+                        {selectedSection.features.map((feature: string, idx: number) => (
                         <Badge key={idx} variant="secondary" className="text-sm">
                             <CheckCircle className="h-3 w-3 mr-1 text-green-500" />
                             {feature}

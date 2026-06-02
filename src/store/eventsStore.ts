@@ -141,7 +141,7 @@ export const useEventsStore = create<EventsState>()(
           set({ isLoading: true })
           try {
             const fullEvent = await eventsService.getEvent(id)
-            set((state) => ({
+            set((state: EventsState) => ({
               events: state.events.some(e => e.id === id) 
                 ? state.events.map(e => e.id === id ? fullEvent : e)
                 : [fullEvent, ...state.events],
@@ -230,7 +230,7 @@ export const useEventsStore = create<EventsState>()(
           // Ensure it has an ID for React keys
           const newSection = {
             ...rawSection,
-            id: rawSection.id || rawSection._id || `temp-${Date.now()}`
+            id: rawSection.id || `temp-${Date.now()}`
           };
           
           console.log("Section Added & Normalized:", newSection);

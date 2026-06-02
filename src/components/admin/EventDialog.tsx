@@ -45,8 +45,8 @@ export default function EventDialog({
     handleSubmit,
     reset,
     formState: { errors }
-  } = useForm<CreateEventPayload>({
-    resolver: zodResolver(createEventSchema),
+  } = useForm({
+    resolver: zodResolver(createEventSchema) as any,
     defaultValues: {
       title: '',
       tournament: 'World Cup 2026',

@@ -36,8 +36,8 @@ export default function SectionDialog({
     handleSubmit,
     reset,
     formState: { errors }
-  } = useForm<CreateSectionPayload>({
-    resolver: zodResolver(createSectionSchema)
+  } = useForm({
+    resolver: zodResolver(createSectionSchema) as any
   })
 
   useEffect(() => {
@@ -155,4 +155,4 @@ export default function SectionDialog({
       </DialogContent>
     </Dialog>
   )
-}
+}
