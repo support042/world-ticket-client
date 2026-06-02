@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { events as initialEvents } from '@/data/events'
+// import { events as initialEvents } from '@/data/events'  // COMMENTED OUT - using API only
 import type { EventsState, Event, Section, EventFilters } from '@/types'
 import { eventsService } from '@/services/events.service'
 
@@ -15,7 +15,7 @@ const defaultFilters: EventFilters = {
 export const useEventsStore = create<EventsState>()(
   persist(
     (set, get) => ({
-      events: initialEvents,
+      events: [],  // ← CHANGED: Start with empty array, not dummy data
       filters: defaultFilters,
       searchQuery: '',
       isLoading: false,
@@ -128,10 +128,8 @@ export const useEventsStore = create<EventsState>()(
         })
       },
 
-      onRehydrateStorage: () => (state: EventsState | undefined) => {
-        if (!state?.events || state.events.length === 0) {
-            if (state) state.events = initialEvents
-        }
+      onRehydrateStorage: () => () => {
+        // Don't fallback to dummy data - we want real API data only
       },
 
     //   getEventById: (id: string): Event | undefined => {
