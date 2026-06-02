@@ -19,6 +19,7 @@ const AdminSectionsPage = lazy(() => import("./pages/admin/AdminSectionsPage"))
 const MyTicketsPage = lazy(() => import("./pages/MyTicketsPage"))
 const ProfilePage = lazy(() => import("./pages/ProfilePage"))
 const CartPage = lazy(() => import("./pages/CartPage"))
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"))
 
 // Admin route protection wrapper
 function AdminRoute({ children }: { children: React.ReactNode }) {
@@ -88,6 +89,7 @@ const App = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/my-tickets" element={<MyTicketsPage />} />
               <Route path="/favorites" element={<div>Favorites Coming Soon</div>} />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
         </Suspense>
