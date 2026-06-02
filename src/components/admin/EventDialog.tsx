@@ -45,7 +45,7 @@ export default function EventDialog({
     handleSubmit,
     reset,
     formState: { errors }
-  } = useForm({
+  } = useForm<CreateEventPayload>({
     resolver: zodResolver(createEventSchema) as any,
     defaultValues: {
       title: '',
@@ -154,7 +154,7 @@ export default function EventDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onFormSubmit as any)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label htmlFor="title">Event Title</Label>

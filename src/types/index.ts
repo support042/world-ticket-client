@@ -182,6 +182,7 @@ export interface EventsState {
   clearFilters: () => void
   getFilteredEvents: () => Event[]
   getEventById: (id: string) => Event | undefined
+  fetchEventById: (id: string) => Promise<Event | null>
   fetchInitialEvents: () => Promise<void>
   loadMoreEvents: () => Promise<void>
   addEvent: (eventData: Partial<Event>) => Promise<Event>

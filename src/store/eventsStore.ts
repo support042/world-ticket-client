@@ -128,9 +128,9 @@ export const useEventsStore = create<EventsState>()(
         })
       },
 
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state: EventsState | undefined) => {
         if (!state?.events || state.events.length === 0) {
-            state.events = initialEvents
+            if (state) state.events = initialEvents
         }
       },
 

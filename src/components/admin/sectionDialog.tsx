@@ -36,7 +36,7 @@ export default function SectionDialog({
     handleSubmit,
     reset,
     formState: { errors }
-  } = useForm({
+  } = useForm<CreateSectionPayload>({
     resolver: zodResolver(createSectionSchema) as any
   })
 
@@ -79,7 +79,7 @@ export default function SectionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onFormSubmit as any)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Section Name</Label>
@@ -88,7 +88,7 @@ export default function SectionDialog({
                 {...register('name')}
                 placeholder="623"
               />
-              {errors.name && <p className="text-xs text-destructive font-medium">{errors.name.message}</p>}
+              {errors.name && <p className="text-xs text-destructive font-medium">{errors.name?.message}</p>}
             </div>
 
             <div className="space-y-2">
@@ -98,7 +98,7 @@ export default function SectionDialog({
                 {...register('row')}
                 placeholder="10"
               />
-              {errors.row && <p className="text-xs text-destructive font-medium">{errors.row.message}</p>}
+              {errors.row && <p className="text-xs text-destructive font-medium">{errors.row?.message}</p>}
             </div>
 
             <div className="space-y-2">
@@ -108,7 +108,7 @@ export default function SectionDialog({
                 type="number"
                 {...register('price')}
               />
-              {errors.price && <p className="text-xs text-destructive font-medium">{errors.price.message}</p>}
+              {errors.price && <p className="text-xs text-destructive font-medium">{errors.price?.message}</p>}
             </div>
 
             <div className="space-y-2">
@@ -118,7 +118,7 @@ export default function SectionDialog({
                 type="number"
                 {...register('available')}
               />
-              {errors.available && <p className="text-xs text-destructive font-medium">{errors.available.message}</p>}
+              {errors.available && <p className="text-xs text-destructive font-medium">{errors.available?.message}</p>}
             </div>
 
             <div className="space-y-2 col-span-2">
@@ -128,7 +128,7 @@ export default function SectionDialog({
                 {...register('features')}
                 placeholder="Clear view, Best price, Away fans section"
               />
-              {errors.features && <p className="text-xs text-destructive font-medium">{errors.features.message}</p>}
+              {errors.features && <p className="text-xs text-destructive font-medium">{errors.features?.message}</p>}
             </div>
 
             <div className="space-y-2 col-span-2">
@@ -138,7 +138,7 @@ export default function SectionDialog({
                 {...register('sectionImage')}
                 placeholder="https://example.com/section-view.jpg"
               />
-              {errors.sectionImage && <p className="text-xs text-destructive font-medium">{errors.sectionImage.message}</p>}
+              {errors.sectionImage && <p className="text-xs text-destructive font-medium">{errors.sectionImage?.message}</p>}
             </div>
           </div>
 
