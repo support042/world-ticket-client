@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom"
+import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom"
 import { lazy, Suspense, useEffect } from "react"
 import { ThemeProvider } from "@/components/ThemeProvider"
 import Header from "@/components/layout/Header"
@@ -32,7 +32,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 // Wrapper component that conditionally shows footer
-function PublicLayout({ children }: { children: React.ReactNode }) {
+function PublicLayout() {
   const location = useLocation()
   
   // Pages where you DON'T want the footer
@@ -52,7 +52,7 @@ function PublicLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1">
         {/* Add max-width container for all page content */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-6">
-          {children}
+          <Outlet />
         </div>
       </main>
       {!shouldHideFooter && <Footer />}
@@ -72,41 +72,23 @@ const App = () => {
       <div className="min-h-screen bg-background flex flex-col">
         <Suspense fallback={<LoadingScreen />}>
           <Routes>
-
             {/* ===== ADMIN ROUTES - no header/footer ===== */}
-            <Route path="/admin/login" element={
-              <AdminLoginPage />
-            } />
-            <Route path="/admin/*" element={
-              <AdminRoute>
-                <AdminDashboard />
-              </AdminRoute>
-            } />
-            <Route path="/admin/events/:eventId/sections" element={
-              <AdminRoute>
-                <AdminSectionsPage />
-              </AdminRoute>
-            } />
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin/events/:eventId/sections" element={<AdminRoute><AdminSectionsPage /></AdminRoute>} />
 
             {/* ===== PUBLIC ROUTES - with conditional footer ===== */}
-            <Route path="*" element={
-              <PublicLayout>
-                <Suspense fallback={<LoadingScreen />}>
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/event/:id" element={<EventTicketPage />} />
-                    <Route path="/event/:id/section/:sectionId" element={<SectionDetailsPage />} />
-                    <Route path="/checkout" element={<CheckoutPage />} />
-                    <Route path="/payment" element={<PaymentPage />} />
-                    <Route path="/cart" element={<CartPage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
-                    <Route path="/my-tickets" element={<MyTicketsPage />} />
-                    <Route path="/favorites" element={<div>Favorites Coming Soon</div>} />
-                  </Routes>
-                </Suspense>
-              </PublicLayout>
-            } />
-
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/event/:id" element={<EventTicketPage />} />
+              <Route path="/event/:id/section/:sectionId" element={<SectionDetailsPage />} />
+              <Route path="/checkout" element={<CheckoutPage />} />
+              <Route path="/payment" element={<PaymentPage />} />
+              <Route path="/cart" element={<CartPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/my-tickets" element={<MyTicketsPage />} />
+              <Route path="/favorites" element={<div>Favorites Coming Soon</div>} />
+            </Route>
           </Routes>
         </Suspense>
       </div>
