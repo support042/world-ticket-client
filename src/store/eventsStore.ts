@@ -294,7 +294,15 @@ export const useEventsStore = create<EventsState>()(
     }),
     {
       name: 'events-storage',
-      partialize: (state) => ({ events: state.events })
+      version: 1,  // Increment this when you want to clear old cached data
+      partialize: (state) => ({ events: state.events }),
+      migrate: (persistedState, version) => {
+        // This runs if version doesn't match - good place to reset data
+        if (version !== 1) {
+          return { events: [] }  // Clear events on version mismatch
+        }
+        return persistedState as EventsState
+      }
     }
   )
 )
