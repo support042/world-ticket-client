@@ -21,6 +21,7 @@ import SectionCard from '@/components/section/SectionCard'
 import SEO from '@/components/common/SEO'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import stadiumImg from '@/assets/images/stadium_img.png'
 
 function SectionSkeleton() {
   return (
@@ -200,11 +201,16 @@ export default function EventTicketPage() {
                       
                       {/* Stadium Background Image */}
                         <div className="absolute inset-0 overflow-hidden">
-                            <img 
+                            <img
+                              src={stadiumImg}
+                              alt={`${event.venue} stadium view`}
+                              className="w-full h-full object-cover"
+                            />
+                            {/* <img 
                             src='/src/assets/images/stadium_img.png'
                             alt={`${event.venue} stadium view`}
                             className="w-full h-full object-cover"
-                            />
+                            /> */}
                             {/* Optional: Dark overlay to make tooltips more visible */}
                             <div className="absolute inset-0 bg-black/20" />
                         </div>
