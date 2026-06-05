@@ -21,6 +21,18 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"))
 const CartPage = lazy(() => import("./pages/CartPage"))
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"))
 
+// Company, Support & Legal Informational Pages
+const AboutPage = lazy(() => import("./pages/AboutPage"))
+const CareersPage = lazy(() => import("./pages/CareersPage"))
+const PressPage = lazy(() => import("./pages/PressPage"))
+const HelpPage = lazy(() => import("./pages/HelpPage"))
+const ContactPage = lazy(() => import("./pages/ContactPage"))
+const FAQPage = lazy(() => import("./pages/FAQPage"))
+const TermsPage = lazy(() => import("./pages/TermsPage"))
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"))
+const CookiesPage = lazy(() => import("./pages/CookiesPage"))
+const ComingSoonPage = lazy(() => import("./pages/ComingSoonPage"))
+
 // Admin route protection wrapper
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAdminAuthenticated } = useAdminStore()
@@ -89,6 +101,20 @@ const App = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/my-tickets" element={<MyTicketsPage />} />
               <Route path="/favorites" element={<div>Favorites Coming Soon</div>} />
+              
+              {/* Company, Support & Legal Informational Pages */}
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/careers" element={<CareersPage />} />
+              <Route path="/press" element={<PressPage />} />
+              <Route path="/help" element={<HelpPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/faq" element={<FAQPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/cookies" element={<CookiesPage />} />
+              <Route path="/concerts" element={<ComingSoonPage />} />
+              <Route path="/sports" element={<ComingSoonPage />} />
+
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

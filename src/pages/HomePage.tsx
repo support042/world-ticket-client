@@ -8,6 +8,7 @@ import { useEventsStore } from '@/store/eventsStore'
 import { Skeleton } from '@/components/ui/skeleton'
 import { tournaments } from '@/data/events'
 import SEO from '@/components/common/SEO'
+import WorldCupDialog from '@/components/tournament/WorldCupDialog'
 
 function EventCardSkeleton() {
   return (
@@ -30,6 +31,7 @@ export default function HomePage() {
   const { getFilteredEvents, searchQuery, isFetching, hasMore, loadMoreEvents } = useEventsStore()
   const [displayCount, setDisplayCount] = useState(4)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [showWorldCupDialog, setShowWorldCupDialog] = useState(false)
   
   const allEvents = getFilteredEvents()
   const events = allEvents.slice(0, displayCount)
@@ -174,7 +176,10 @@ export default function HomePage() {
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {tournament.description}
                   </p>
-                  <button className="text-sm text-primary hover:underline mt-2">
+                  <button 
+                    onClick={() => setShowWorldCupDialog(true)}
+                    className="text-sm text-primary hover:underline font-semibold mt-2 cursor-pointer"
+                  >
                     See more
                   </button>
 
@@ -184,7 +189,7 @@ export default function HomePage() {
                         <CheckCircle className="h-4 w-4 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-sm">TicketHub Guarantee</h3>
+                        <h3 className="font-semibold text-sm">Ticketapoint Guarantee</h3>
                         <p className="text-xs text-muted-foreground mt-1">
                           We back every order so you can buy and sell tickets with 100% confidence.
                         </p>
@@ -197,6 +202,12 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* World Cup Dialog */}
+      <WorldCupDialog
+        open={showWorldCupDialog}
+        onOpenChange={setShowWorldCupDialog}
+      />
     </div>
   )
 }

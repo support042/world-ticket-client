@@ -63,7 +63,7 @@ export default function Header() {
                         </div>
                         <div className="flex items-center">
                            <span className="text-xl font-black tracking-tight text-primary">ticket</span>
-                           <span className="text-xl font-black tracking-tight text-foreground">hub</span>
+                           <span className="text-xl font-black tracking-tight text-foreground">apoint</span>
                         </div>
                      </Link>
 

@@ -409,7 +409,7 @@ export default function EventDetailsPage() {
                       <div>
                         <p className="text-sm font-medium">Resell Anytime</p>
                         <p className="text-xs text-muted-foreground">
-                          Not sure if you can make it? You can resell your tickets on tickethub at any time.
+                          Not sure if you can make it? You can resell your tickets on ticketapoint at any time.
                         </p>
                       </div>
                     </div>

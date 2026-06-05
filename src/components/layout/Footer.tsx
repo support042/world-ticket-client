@@ -56,8 +56,8 @@ export default function Footer() {
             <h3 className="font-semibold mb-4">Popular Events</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link to="/" className="hover:text-foreground transition-colors">World Cup 2026</Link></li>
-              <li><Link to="/" className="hover:text-foreground transition-colors">Concerts</Link></li>
-              <li><Link to="/" className="hover:text-foreground transition-colors">Sports</Link></li>
+              <li><Link to="/concerts" className="hover:text-foreground transition-colors">Concerts</Link></li>
+              <li><Link to="/sports" className="hover:text-foreground transition-colors">Sports</Link></li>
             </ul>
           </div>
         </div>
@@ -78,7 +78,7 @@ export default function Footer() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-4">
-          &copy; {new Date().getFullYear()} TicketHub. All rights reserved.
+          &copy; {new Date().getFullYear()} Ticketapoint. All rights reserved.
         </p>
       </div>
     </footer>
