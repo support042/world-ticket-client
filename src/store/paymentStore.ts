@@ -56,7 +56,7 @@ interface PaymentState {
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
-export const usePaymentStore = create<PaymentState>((set, get) => ({
+export const usePaymentStore = create<PaymentState>((set) => ({
   // Initial state
   initiatedUsers: [],
   isLoadingUsers: false,
