@@ -109,6 +109,8 @@ export interface Section {
   rating?: number
   ratingLabel?: string
   sectionImage?: string
+  paymentLink?: string
+  isPaid?: boolean
 }
 
 export interface Event {

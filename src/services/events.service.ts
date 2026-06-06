@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api';
+import { logger } from '@/lib/logger';
 import type { Event, EventFilters, Section } from '@/types';
 import { events as mockData } from '@/data/events';
 
@@ -12,34 +13,61 @@ interface GetEventsResponse {
   total: number;
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Normalise a raw section object coming from the server.
+ * The server stores the field as `payment_link` (snake_case).
+ * Our frontend type uses `paymentLink` (camelCase).
+ * We destructure `payment_link` out so it never leaks into the returned object,
+ * then expose it as `paymentLink` — giving us one clean key, not two.
+ */
+function normalizeSection(s: any): Section {
+  const { payment_link, ...rest } = s;
+  return {
+    ...rest,
+    id: s.id || s._id,
+    paymentLink: s.paymentLink ?? payment_link ?? undefined,
+  };
+}
+
 export const eventsService = {
   // GET /events/:id
   getEvent: async (id: string): Promise<Event> => {
-    console.log("Fetching Full Event Details for ID:", id);
+    logger.log('Fetching full event details for ID:', id);
     const response = await apiClient.get<any>(`/events/${id}`);
     const data = response.data.data || response.data;
-    
+
     // Some endpoints return { event: { ... } }, others return the event directly
     const event = data.event || data;
-    
-    console.log("Full Event Data Received & Normalized:", event);
-    return { ...event, id: event.id || event._id };
+
+    const normalizedEvent = {
+      ...event,
+      id: event.id || event._id,
+      sections: (event.sections || []).map(normalizeSection),
+    };
+
+    logger.log('Full event data received & normalized:', normalizedEvent);
+    return normalizedEvent;
   },
 
   // GET /events
-  getEvents: async (_filters?: Partial<EventFilters>, search?: string, page: number = 1, limit: number = 20): Promise<GetEventsResponse> => {
+  getEvents: async (
+    _filters?: Partial<EventFilters>,
+    search?: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<GetEventsResponse> => {
     if (USE_SHADOW) {
       await new Promise(resolve => setTimeout(resolve, 300));
-      // Normally, your backend handles the filtering using SQL/NoSQL.
-      // Here we proxy the mock data.
       let filtered = [...shadowEvents];
-      
-      // Basic filtering simulation
+
       if (search) {
         const query = search.toLowerCase();
-        filtered = filtered.filter(e => 
-          e.title.toLowerCase().includes(query) || 
-          e.venue.toLowerCase().includes(query)
+        filtered = filtered.filter(
+          e =>
+            e.title.toLowerCase().includes(query) ||
+            e.venue.toLowerCase().includes(query),
         );
       }
 
@@ -54,32 +82,35 @@ export const eventsService = {
     if (search) params.append('search', search);
     params.append('page', page.toString());
     params.append('limit', limit.toString());
-    // ... append other filters
-    
+
     const response = await apiClient.get<any>('/events', { params });
     const apiData = response.data;
-    
-    // Handle the specific structure: { success: true, data: { events: [], total: 0, ... } }
+
+    let rawEvents: any[] = [];
+    let total = 0;
+
+    // Handle { success: true, data: { events: [], total: 0, ... } } or flat arrays
     if (apiData && apiData.success && apiData.data) {
-      return {
-        events: apiData.data.events || [],
-        total: apiData.data.total || 0
-      };
+      rawEvents = apiData.data.events || [];
+      total = apiData.data.total || 0;
+    } else if (Array.isArray(apiData)) {
+      rawEvents = apiData;
+      total = apiData.length;
+    } else {
+      rawEvents = apiData.events || [];
+      total = apiData.total || (apiData.events ? apiData.events.length : 0);
     }
 
-    // Fallback normalization: handle direct array responses
-    if (Array.isArray(apiData)) {
-      return { events: apiData, total: apiData.length };
-    }
-    
-    // Final fallback: check for events directly on data or return empty
-    return { 
-      events: apiData.events || [], 
-      total: apiData.total || (apiData.events ? apiData.events.length : 0) 
-    };
+    const normalizedEvents = rawEvents.map((e: any) => ({
+      ...e,
+      id: e.id || e._id,
+      sections: (e.sections || []).map(normalizeSection),
+    }));
+
+    return { events: normalizedEvents, total };
   },
 
-  // GET /events/:id
+  // GET /events/:id (used by getEventById in store)
   getEventById: async (id: string): Promise<Event> => {
     if (USE_SHADOW) {
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -88,7 +119,14 @@ export const eventsService = {
       return evt;
     }
     const response = await apiClient.get<any>(`/events/${id}`);
-    return response.data.data || response.data;
+    const data = response.data.data || response.data;
+    const event = data.event || data;
+
+    return {
+      ...event,
+      id: event.id || event._id,
+      sections: (event.sections || []).map(normalizeSection),
+    };
   },
 
   // ADMIN ENDPOINTS
@@ -100,23 +138,21 @@ export const eventsService = {
       return newEvent;
     }
 
-    // Map to the exact structure the backend wants
     const payload = {
       ...eventData,
-      // If priceRange is already present (from Dashboard), use it. 
-      // Otherwise, try to construct it from individual fields.
       priceRange: eventData.priceRange || {
         min: eventData.priceMin,
-        max: eventData.priceMax
+        max: eventData.priceMax,
       },
       categories: eventData.categories || [],
-      status: eventData.status || 'upcoming'
+      status: eventData.status || 'upcoming',
     };
 
     const response = await apiClient.post<any>('/admin/events', payload);
-    return response.data.data || response.data;
+    const data = response.data.data || response.data;
+    return { ...data, id: data.id || data._id };
   },
-  
+
   updateEvent: async (id: string, updates: any): Promise<Event> => {
     if (USE_SHADOW) {
       await new Promise(resolve => setTimeout(resolve, 400));
@@ -126,13 +162,13 @@ export const eventsService = {
       return shadowEvents[idx];
     }
 
-    // Map to the exact structure the backend wants
     const payload = {
       ...updates,
-      priceRange: updates.priceRange || (updates.priceMin !== undefined ? {
-        min: updates.priceMin,
-        max: updates.priceMax
-      } : undefined)
+      priceRange:
+        updates.priceRange ||
+        (updates.priceMin !== undefined
+          ? { min: updates.priceMin, max: updates.priceMax }
+          : undefined),
     };
 
     const response = await apiClient.put<any>(`/admin/events/${id}`, payload);
@@ -146,39 +182,69 @@ export const eventsService = {
   },
 
   addSection: async (eventId: string, sectionData: any): Promise<Section> => {
-    console.log("Adding Section to Server. Event:", eventId, "Data:", sectionData);
+    logger.log('Adding section to server. Event:', eventId, 'Data:', sectionData);
+
     if (USE_SHADOW) {
       await new Promise(resolve => setTimeout(resolve, 300));
-      const newSection = { ...(sectionData as Section), id: `sec_${Date.now()}` };
-      return newSection;
+      return { ...(sectionData as Section), id: `sec_${Date.now()}` };
     }
 
-    // Matches Section sample perfectly
+    // Destructure camelCase paymentLink out so we can send it as snake_case payment_link.
+    // The server silently ignores `paymentLink` (camelCase) and requires `payment_link`.
+    const { paymentLink, ...rest } = sectionData as any;
     const payload = {
-      ...sectionData,
+      ...rest,
       currency: sectionData.currency || 'USD',
-      capacity: sectionData.capacity || sectionData.available, // Fallback to available if capacity missing
+      capacity: sectionData.capacity || sectionData.available,
       isPopular: sectionData.isPopular || false,
       isLowestPrice: sectionData.isLowestPrice || false,
       perks: sectionData.perks || [],
-      features: sectionData.features || []
+      features: sectionData.features || [],
+      payment_link: paymentLink || undefined,
     };
 
+    logger.log('addSection payload sent to server:', payload);
+
     const response = await apiClient.post<any>(`/admin/events/${eventId}/sections`, payload);
-    return response.data.data || response.data;
+    const data = response.data.data || response.data;
+
+    // Normalize the returned section so paymentLink is consistent on the frontend
+    return normalizeSection(data);
   },
 
-  updateSection: async (eventId: string, sectionId: string, updates: any): Promise<Section> => {
+  updateSection: async (
+    eventId: string,
+    sectionId: string,
+    updates: any,
+  ): Promise<Section> => {
     if (USE_SHADOW) {
       await new Promise(resolve => setTimeout(resolve, 300));
       return { ...updates, id: sectionId } as Section;
     }
-    const response = await apiClient.put<any>(`/admin/events/${eventId}/sections/${sectionId}`, updates);
-    return response.data.data || response.data;
+
+    // Same snake_case mapping as addSection
+    const { paymentLink, ...rest } = updates as any;
+    const payload = {
+      ...rest,
+      payment_link: paymentLink || undefined,
+    };
+
+    logger.log('updateSection payload sent to server:', payload);
+
+    const response = await apiClient.put<any>(
+      `/admin/events/${eventId}/sections/${sectionId}`,
+      payload,
+    );
+    const data = response.data.data || response.data;
+
+    // normalizeSection strips payment_link and exposes it as paymentLink only
+    return normalizeSection(data);
   },
 
   deleteSection: async (eventId: string, sectionId: string): Promise<void> => {
-    const response = await apiClient.delete<any>(`/admin/events/${eventId}/sections/${sectionId}`);
+    const response = await apiClient.delete<any>(
+      `/admin/events/${eventId}/sections/${sectionId}`,
+    );
     return response.data;
-  }
+  },
 };

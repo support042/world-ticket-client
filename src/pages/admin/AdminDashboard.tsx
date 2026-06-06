@@ -16,6 +16,7 @@ import type { Event, Section, DeleteTarget } from '@/types'
 import DeleteDialog from '@/components/admin/deleteDialog'
 import { toast } from 'sonner'
 import type { CreateEventPayload, CreateSectionPayload } from '@/lib/validations'
+import { logger } from '@/lib/logger'
 
 const defaultDeleteTarget: DeleteTarget = { type: null, id: null, eventId: null }
 
@@ -65,10 +66,27 @@ export default function AdminDashboard() {
   if (!isAdminAuthenticated) return null
 
   const totalEvents = totalResults || events.length
-  const totalTickets = events.reduce((acc, e) =>
-    acc + (e.sections?.reduce((a, s) => a + s.available, 0) || 0), 0)
-  const totalRevenue = events.reduce((acc, e) =>
-    acc + (e.sections?.reduce((a, s) => a + s.price * s.available, 0) || 0), 0)
+
+  // Sections are NOT embedded in the list API response — only in GET /events/:id.
+  // We derive estimates from fields that ARE present on every list item.
+  const totalTickets = events.reduce((acc, e) => {
+    // If sections are loaded (e.g. after viewing a detail), use them
+    const fromSections = e.sections?.reduce((a, s) => a + (s.available ?? 0), 0) ?? 0
+    if (fromSections > 0) return acc + fromSections
+    // Fallback: ticketsLeftPercent × a nominal capacity of 1000
+    if (e.ticketsLeftPercent != null) return acc + Math.round((e.ticketsLeftPercent / 100) * 1000)
+    return acc
+  }, 0)
+
+  const totalRevenue = events.reduce((acc, e) => {
+    // If sections loaded, use price × available for precision
+    const fromSections = e.sections?.reduce((a, s) => a + (s.price ?? 0) * (s.available ?? 0), 0) ?? 0
+    if (fromSections > 0) return acc + fromSections
+    // Fallback: midpoint of priceRange × estimated available tickets
+    const midPrice = e.priceRange ? (e.priceRange.min + e.priceRange.max) / 2 : 0
+    const estAvail = e.ticketsLeftPercent != null ? Math.round((e.ticketsLeftPercent / 100) * 1000) : 0
+    return acc + midPrice * estAvail
+  }, 0)
 
   const handleLogout = () => { 
     adminLogout(); 
@@ -111,7 +129,7 @@ export default function AdminDashboard() {
       sections: editingEvent?.sections ?? []
     }
 
-    console.log("Submitting Event Payload:", eventData);
+    logger.log('Submitting Event Payload:', eventData)
 
     try {
       if (editingEvent) {
@@ -123,7 +141,7 @@ export default function AdminDashboard() {
       }
       setEditingEvent(null)
     } catch (err) {
-      console.error('Failed to save event:', err)
+      logger.error('Failed to save event:', err)
       toast.error('Failed to save event: ' + (err instanceof Error ? err.message : 'Unknown error'))
       // Re-throw so the dialog knows NOT to close
       throw err
@@ -161,7 +179,7 @@ export default function AdminDashboard() {
       setEditingSection(null)
       setSelectedEventId(null)
     } catch (err) {
-      console.error('Failed to save section:', err)
+      logger.error('Failed to save section:', err)
       toast.error('Failed to save section')
     } finally {
       setIsSubmitting(false)
@@ -273,9 +291,9 @@ export default function AdminDashboard() {
                 )}
                 
                 <div className="p-4 sm:p-6 space-y-4">
-                  {events.map((event) => (
+                  {events.map((event, index) => (
                     <AdminEventCard
-                      key={event.id}
+                      key={event.id || event.id || `evt-${index}`}
                       event={event}
                       onEditEvent={openEditEvent}
                       onDeleteEvent={openDeleteEvent}

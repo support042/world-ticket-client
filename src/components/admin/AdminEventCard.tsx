@@ -160,17 +160,23 @@ export default function AdminEventCard({
         <div className="flex flex-row">
           
           {/* Date Badge */}
-          <div className="flex-shrink-0 bg-muted p-2 md:p-3 flex flex-col items-center justify-center min-w-[60px] md:min-w-[70px] lg:min-w-[80px]">
-            <span className="text-[10px] md:text-xs lg:text-sm font-medium text-muted-foreground">
-              {new Date(event.date).toLocaleDateString('en-US', { month: 'short' })}
-            </span>
-            <span className="text-base md:text-xl lg:text-2xl font-bold">
-              {new Date(event.date).getDate()}
-            </span>
-            <span className="text-[8px] md:text-[10px] lg:text-xs text-muted-foreground">
-              {new Date(event.date).toLocaleDateString('en-US', { weekday: 'short' })}
-            </span>
-          </div>
+          {(() => {
+            const isValidDate = event.date && !isNaN(new Date(event.date).getTime())
+            const dateObj = isValidDate ? new Date(event.date) : null
+            return (
+              <div className="flex-shrink-0 bg-muted p-2 md:p-3 flex flex-col items-center justify-center min-w-[60px] md:min-w-[70px] lg:min-w-[80px]">
+                <span className="text-[10px] md:text-xs lg:text-sm font-medium text-muted-foreground">
+                  {dateObj ? dateObj.toLocaleDateString('en-US', { month: 'short' }) : 'TBD'}
+                </span>
+                <span className="text-base md:text-xl lg:text-2xl font-bold">
+                  {dateObj ? dateObj.getDate() : '-'}
+                </span>
+                <span className="text-[8px] md:text-[10px] lg:text-xs text-muted-foreground">
+                  {dateObj ? dateObj.toLocaleDateString('en-US', { weekday: 'short' }) : ''}
+                </span>
+              </div>
+            )
+          })()}
 
           {/* Event Info */}
           <div className="flex-1 p-2 md:p-3 lg:p-4">

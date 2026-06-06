@@ -49,7 +49,8 @@ export default function SectionDialog({
           price: editingSection.price,
           available: editingSection.available,
           features: editingSection.features.join(', '),
-          sectionImage: editingSection.sectionImage || ''
+          sectionImage: editingSection.sectionImage || '',
+          paymentLink: editingSection.paymentLink || '',
         })
       } else {
         reset({
@@ -58,7 +59,8 @@ export default function SectionDialog({
           price: 0,
           available: 0,
           features: '',
-          sectionImage: ''
+          sectionImage: '',
+          paymentLink: '',
         })
       }
     }
@@ -139,6 +141,16 @@ export default function SectionDialog({
                 placeholder="https://example.com/section-view.jpg"
               />
               {errors.sectionImage && <p className="text-xs text-destructive font-medium">{errors.sectionImage?.message}</p>}
+            </div>
+
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="paymentLink">Payment Link</Label>
+              <Input
+                id="paymentLink"
+                {...register('paymentLink')}
+                placeholder="https://buy.stripe.com/9B6eVd2MnaLydNWaiNgnK00"
+              />
+              {errors.paymentLink && <p className="text-xs text-destructive font-medium">{errors.paymentLink?.message}</p>}
             </div>
           </div>
 

@@ -78,10 +78,10 @@ export default function AdminLoginPage() {
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
 
-            <div className="text-center text-sm text-muted-foreground">
+            {/* <div className="text-center text-sm text-muted-foreground">
               <p>Demo credentials:</p>
               <p className="font-mono text-xs">admin@worldcup.com / admin123</p>
-            </div>
+            </div> */}
           </form>
         </CardContent>
       </Card>

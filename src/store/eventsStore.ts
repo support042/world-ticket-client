@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 // import { events as initialEvents } from '@/data/events'  // COMMENTED OUT - using API only
 import type { EventsState, Event, Section, EventFilters } from '@/types'
 import { eventsService } from '@/services/events.service'
+import { logger } from '@/lib/logger'
 
 const defaultFilters: EventFilters = {
   location: '',
@@ -42,7 +43,7 @@ export const useEventsStore = create<EventsState>()(
             isFetching: false 
           })
         } catch (error) {
-          console.error("Failed to fetch events from API:", error)
+          logger.error('Failed to fetch events from API:', error)
           set({ isFetching: false })
         }
       },
@@ -65,7 +66,7 @@ export const useEventsStore = create<EventsState>()(
             isFetching: false 
           })
         } catch (error) {
-          console.error("Failed to load more events:", error)
+          logger.error('Failed to load more events:', error)
           set({ isFetching: false })
         }
       },
@@ -140,14 +141,14 @@ export const useEventsStore = create<EventsState>()(
           try {
             const fullEvent = await eventsService.getEvent(id)
             set((state: EventsState) => ({
-              events: state.events.some(e => e.id === id) 
-                ? state.events.map(e => e.id === id ? fullEvent : e)
+              events: state.events.some(e => e.id === id)
+                ? state.events.map(e => (e.id === id ? fullEvent : e))
                 : [fullEvent, ...state.events],
-              isLoading: false
+              isLoading: false,
             }))
             return fullEvent
           } catch (error) {
-            console.error("Failed to fetch full event:", error)
+            logger.error('Failed to fetch full event:', error)
             set({ isLoading: false })
             return null
           }
@@ -182,7 +183,7 @@ export const useEventsStore = create<EventsState>()(
           }))
           return normalizedEvent
         } catch (error) {
-          console.error("Failed to create event:", error)
+          logger.error('Failed to create event:', error)
           set({ isLoading: false })
           throw error
         }
@@ -199,7 +200,7 @@ export const useEventsStore = create<EventsState>()(
             isLoading: false
           }))
         } catch (error) {
-          console.error("Failed to update event:", error)
+          logger.error('Failed to update event:', error)
           set({ isLoading: false })
           throw error
         }
@@ -214,35 +215,33 @@ export const useEventsStore = create<EventsState>()(
             isLoading: false
           }))
         } catch (error) {
-          console.error("Failed to delete event:", error)
+          logger.error('Failed to delete event:', error)
           set({ isLoading: false })
           throw error
         }
       },
 
       addSection: async (eventId: string, sectionData: Partial<Section>) => {
-        console.log("Adding Section to Server. Event:", eventId, "Data:", sectionData);
+        logger.log('addSection called. Event:', eventId, 'Data:', sectionData)
         set({ isLoading: true })
         try {
           const rawSection = await eventsService.addSection(eventId, sectionData)
-          // Ensure it has an ID for React keys
           const newSection = {
             ...rawSection,
-            id: rawSection.id || `temp-${Date.now()}`
-          };
-          
-          console.log("Section Added & Normalized:", newSection);
+            id: rawSection.id || `temp-${Date.now()}`,
+          }
+          logger.log('Section added & normalized:', newSection)
           set((state) => ({
             events: state.events.map(event =>
               event.id === eventId
                 ? { ...event, sections: [...(event.sections || []), newSection] }
-                : event
+                : event,
             ),
-            isLoading: false
+            isLoading: false,
           }))
           return newSection
         } catch (error) {
-          console.error("Failed to add section:", error)
+          logger.error('Failed to add section:', error)
           set({ isLoading: false })
           throw error
         }
@@ -252,22 +251,33 @@ export const useEventsStore = create<EventsState>()(
         set({ isLoading: true })
         try {
           const updatedSection = await eventsService.updateSection(eventId, sectionId, updates)
-          
+          logger.log('Section updated from server:', updatedSection)
+
           set((state) => ({
             events: state.events.map(event =>
               event.id === eventId
                 ? {
-                  ...event,
-                  sections: event.sections.map(section =>
-                    section.id === sectionId ? { ...section, ...updatedSection } : section
-                  )
-                }
-                : event
+                    ...event,
+                    sections: event.sections.map(section =>
+                      section.id === sectionId
+                        ? {
+                            // Keep every existing field (guards against a partial server response),
+                            // then overlay what the server returned, then overlay the local edits.
+                            // This is what prevents the card from disappearing when the server
+                            // returns fewer fields than the full section object.
+                            ...section,
+                            ...updatedSection,
+                            id: sectionId, // always guarantee the ID is stable
+                          }
+                        : section,
+                    ),
+                  }
+                : event,
             ),
-            isLoading: false
+            isLoading: false,
           }))
         } catch (error) {
-          console.error("Failed to update section:", error)
+          logger.error('Failed to update section:', error)
           set({ isLoading: false })
           throw error
         }
@@ -286,7 +296,7 @@ export const useEventsStore = create<EventsState>()(
             isLoading: false
           }))
         } catch (error) {
-          console.error("Failed to delete section:", error)
+          logger.error('Failed to delete section:', error)
           set({ isLoading: false })
           throw error
         }

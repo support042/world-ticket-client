@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Clock, DollarSign, Flame, Info, RefreshCw, Shield,} from 'lucide-react'
+import { Clock, DollarSign, Flame, Info, RefreshCw, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -18,10 +18,13 @@ import {
 } from '@/components/ui/select'
 import { useCartStore } from '@/store/cartStore'
 import { useAuthStore } from '@/store/authStore'
+import { usePaymentStore } from '@/store/paymentStore'
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils'
 import AuthForm from '@/components/auth/AuthForm'
 import type { CheckoutFormData, CheckoutFormErrors, FilterOption } from '@/types'
 import SectionDetailsDialog from '@/components/section/SectionDetailsDialog'
+import { toast } from 'sonner'
+import { logger } from '@/lib/logger'
 
 const countryCodes: FilterOption[] = [
   { value: '+1', label: 'US - 1' },
@@ -46,8 +49,10 @@ export default function CheckoutPage() {
     newsletterOptIn,
     setNewsletterOptIn,
     setContactInfo,
+    clearCart,
   } = useCartStore()
   const { user, isAuthenticated } = useAuthStore()
+  const { initiatePayment, isInitiating } = usePaymentStore()
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: user?.email ?? '',
@@ -110,19 +115,37 @@ export default function CheckoutPage() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleContinue = () => {
-    console.log('Continue button clicked')
-    console.log('Form data:', formData)
-    
-    if (validateForm()) {
-      console.log('Form validation passed, saving contact info...')
-      // Save contact info to the store
-      setContactInfo(formData)
-      console.log('Contact info saved, navigating to /payment')
-      // Navigate to payment
-      navigate('/payment')
+  // ── handleContinue (Stripe external-link flow) ───────────────────────────
+  // When the section has a paymentLink we open the Stripe-hosted page in a new
+  // tab and fire initiatePayment() so the server can track the visit/click.
+  // The old navigate('/payment') path is preserved below (commented out) for
+  // when we bring back our own Stripe integration later.
+  const handleContinue = async () => {
+    if (!validateForm()) return
+
+    // Save contact info to the store regardless of which path we take
+    setContactInfo(formData)
+
+    const paymentLink = selectedSection?.paymentLink
+
+    if (paymentLink) {
+      // Must successfully notify backend that payment was initiated
+      try {
+        await initiatePayment(selectedSection!.id, paymentLink)
+        // Open the Stripe-hosted payment link in a new tab ONLY after successful initiation
+        window.open(paymentLink, '_blank', 'noopener,noreferrer')
+        // Clear cart and redirect parent window to My Tickets page
+        clearCart()
+        navigate('/my-tickets')
+      } catch (err: any) {
+        logger.error('Failed to initiate payment tracking:', err)
+        toast.error(err?.message || 'Failed to initiate payment. Please log in or try again.')
+      }
     } else {
-      console.log('Form validation failed:', errors)
+      // ── Fallback: own Stripe integration (kept for future use) ──────────
+      // navigate('/payment')
+      // ────────────────────────────────────────────────────────────────────
+      logger.warn('No paymentLink found on this section – no payment route configured.')
     }
   }
 
@@ -353,9 +376,56 @@ export default function CheckoutPage() {
               </Card>
             )}
 
-            <Button className="w-full" size="lg" onClick={handleContinue}>
-              Continue
-            </Button>
+            {/* ── Continue / Pay button ───────────────────────────────────────────
+                 If the section has a paymentLink we render a styled <a> that
+                 opens the Stripe-hosted page in a new tab.  We keep the <Button>
+                 as the fallback for sections without a paymentLink so nothing
+                 breaks for admins who haven't added a link yet.
+            ──────────────────────────────────────────────────────────────────── */}
+            {selectedSection?.paymentLink ? (
+              <a
+                href={selectedSection.paymentLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  // Validate + track before the browser follows the href
+                  e.preventDefault()
+                  handleContinue()
+                }}
+                className={
+                  [
+                    // Mirror the shadcn Button's base + size="lg" classes so it
+                    // looks identical to the original <Button>
+                    'inline-flex items-center justify-center gap-2 whitespace-nowrap',
+                    'rounded-md text-sm font-medium ring-offset-background',
+                    'transition-colors focus-visible:outline-none focus-visible:ring-2',
+                    'focus-visible:ring-ring focus-visible:ring-offset-2',
+                    'disabled:pointer-events-none disabled:opacity-50',
+                    // variant=default colours
+                    'bg-primary text-primary-foreground hover:bg-primary/90',
+                    // size=lg padding
+                    'h-11 px-8',
+                    // full-width
+                    'w-full',
+                    // loading state
+                    isInitiating ? 'opacity-70 pointer-events-none' : '',
+                  ].join(' ')
+                }
+              >
+                {isInitiating ? 'Processing…' : 'Continue to Payment'}
+              </a>
+            ) : (
+              /* No paymentLink – fall back to the old Button (navigates nowhere
+                 until an admin adds a link or we re-enable our own Stripe page) */
+              <Button
+                className="w-full"
+                size="lg"
+                disabled={isInitiating}
+                onClick={handleContinue}
+              >
+                {isInitiating ? 'Processing…' : 'Continue'}
+              </Button>
+            )}
           </div>
 
           {/* RIGHT COLUMN - Order Summary (Sticky) */}

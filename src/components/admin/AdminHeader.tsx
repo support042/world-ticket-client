@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { LogOut, Home, Menu, X, Sun, Moon, Ticket } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { LogOut, Home, Menu, X, Sun, Moon, Ticket, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useTheme } from '@/components/ThemeProvider'
@@ -14,10 +14,14 @@ interface AdminHeaderProps {
 export default function AdminHeader({ admin, onLogout }: AdminHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { theme, setTheme } = useTheme()
+  const location = useLocation()
 
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark')
   }
+
+  const isPaymentsPage = location.pathname === '/admin/payments'
+  const isDashboardPage = location.pathname === '/admin'
 
   return (
     <header className="bg-card border-b sticky top-0 z-50">
@@ -32,7 +36,7 @@ export default function AdminHeader({ admin, onLogout }: AdminHeaderProps) {
               </div>
               <div className="flex items-center">
                  <span className="text-xl font-black tracking-tight text-primary">ticket</span>
-                 <span className="text-xl font-black tracking-tight text-foreground">hub</span>
+                 <span className="text-xl font-black tracking-tight text-foreground">apoint</span>
               </div>
             </Link>
             <Badge variant="secondary" className="hidden sm:inline-block font-black uppercase tracking-widest text-[10px]">Admin</Badge>
@@ -40,10 +44,25 @@ export default function AdminHeader({ admin, onLogout }: AdminHeaderProps) {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-4">
-            {/* Welcome Message - Hidden on smaller desktop */}
             <span className="text-sm text-muted-foreground hidden lg:inline">
               Welcome, {admin?.name}
             </span>
+
+            {/* Dashboard Link */}
+            {/* <Button variant={isDashboardPage ? "secondary" : "ghost"} size="sm" asChild>
+              <Link to="/admin">
+                <Ticket className="h-4 w-4 mr-2" />
+                <span>Events</span>
+              </Link>
+            </Button> */}
+
+            {/* Payments Link */}
+            <Button variant={isPaymentsPage ? "secondary" : "ghost"} size="sm" asChild>
+              <Link to="/admin/payments">
+                <CreditCard className="h-4 w-4 mr-2" />
+                <span>Payments</span>
+              </Link>
+            </Button>
             
             {/* Theme Toggle */}
             <Button variant="ghost" size="icon" onClick={toggleTheme}>
@@ -103,6 +122,26 @@ export default function AdminHeader({ admin, onLogout }: AdminHeaderProps) {
                 Welcome, <span className="font-semibold text-foreground">{admin?.name}</span>
               </p>
             </div>
+
+            {/* Dashboard Link */}
+            <Link 
+              to="/admin" 
+              className={`flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors py-1 ${isDashboardPage ? 'text-primary font-semibold' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <Ticket className="h-4 w-4" />
+              Events
+            </Link>
+
+            {/* Payments Link */}
+            <Link 
+              to="/admin/payments" 
+              className={`flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors py-1 ${isPaymentsPage ? 'text-primary font-semibold' : ''}`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <CreditCard className="h-4 w-4" />
+              Payments
+            </Link>
             
             {/* View Site Link */}
             <Link 

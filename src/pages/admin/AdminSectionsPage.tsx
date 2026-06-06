@@ -8,6 +8,7 @@ import AdminHeader from '@/components/admin/AdminHeader'
 import { useAdminStore } from '@/store/authStore'
 import { useEventsStore } from '@/store/eventsStore'
 import { formatDate, formatTime, formatCurrency } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 import type { Section, DeleteTarget } from '@/types'
 import SectionDetailsDialog from '@/components/section/SectionDetailsDialog'
 import DeleteDialog from '@/components/admin/deleteDialog'
@@ -51,6 +52,18 @@ export default function AdminSectionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(defaultDeleteTarget)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Keep local event state in sync with the store.
+  // This runs whenever the store's events array is mutated (add/update/delete section)
+  // so we never need to call getEventById() synchronously right after a store mutation
+  // (which would grab stale data before Zustand has applied the update).
+  const storeEvents = useEventsStore(s => s.events)
+  useEffect(() => {
+    if (eventId) {
+      const fresh = getEventById(eventId)
+      if (fresh) setEvent(fresh)
+    }
+  }, [storeEvents, eventId, getEventById])
+
   useEffect(() => {
     if (!isAdminAuthenticated) {
       navigate('/admin/login')
@@ -59,17 +72,16 @@ export default function AdminSectionsPage() {
 
     const loadData = async () => {
       if (!eventId) return
-      
+
       // First try to get from local store for instant UI
       const localEvent = getEventById(eventId)
       if (localEvent) setEvent(localEvent)
-      
+
       // Then fetch fresh data from server (including sections)
       const freshEvent = await fetchEventById(eventId)
       if (freshEvent) {
         setEvent(freshEvent)
       } else if (!localEvent) {
-        // If not on server and not in local store, it doesn't exist
         navigate('/admin')
       }
     }
@@ -105,7 +117,8 @@ export default function AdminSectionsPage() {
       available: data.available,
       features: data.features ? data.features.split(',').map(f => f.trim()).filter(Boolean) : [],
       ticketsSoldLastHour,
-      sectionImage: data.sectionImage
+      sectionImage: data.sectionImage,
+      paymentLink: data.paymentLink,
     }
 
     try {
@@ -114,9 +127,10 @@ export default function AdminSectionsPage() {
       } else {
         await addSection(event.id, sectionData)
       }
-      setEvent(getEventById(event.id))
+      // No need to call setEvent manually here —
+      // the storeEvents useEffect above will pick up the change automatically.
     } catch (err) {
-      console.error('Failed to save section:', err)
+      logger.error('Failed to save section:', err)
     } finally {
       setIsSubmitting(false)
     }
@@ -125,7 +139,7 @@ export default function AdminSectionsPage() {
   const handleDelete = () => {
     if (deleteTarget.type === 'section' && deleteTarget.id && deleteTarget.eventId) {
       deleteSection(deleteTarget.eventId, deleteTarget.id)
-      setEvent(getEventById(deleteTarget.eventId))
+      // setEvent will be updated by the storeEvents useEffect automatically
     }
     setShowDeleteDialog(false)
     setDeleteTarget(defaultDeleteTarget)
@@ -232,9 +246,9 @@ export default function AdminSectionsPage() {
               </div>
             ) : event?.sections && event.sections.length > 0 ? (
               <div className="space-y-3">
-                {event.sections.map((section) => (
+                {event.sections.map((section, index) => (
                   <AdminSectionCard
-                    key={section.id}
+                    key={section.id || section.id || `sec-${index}`}
                     section={section}
                     onViewDetails={openSectionDetails}
                     onEdit={openEditSection}

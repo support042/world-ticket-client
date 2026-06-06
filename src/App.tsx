@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/ThemeProvider"
 import Header from "@/components/layout/Header"
 import Footer from "@/components/layout/Footer"
 import LoadingScreen from "@/components/common/LoadingScreen"
+import SessionWatcher from "@/components/common/SessionWatcher"
 import { useAdminStore } from "@/store/authStore"
 import { useEventsStore } from "@/store/eventsStore"
 
@@ -16,9 +17,10 @@ const SectionDetailsPage = lazy(() => import("./pages/SectionDetailsPage"))
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"))
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"))
 const AdminSectionsPage = lazy(() => import("./pages/admin/AdminSectionsPage"))
+const AdminPaymentsPage = lazy(() => import("./pages/admin/AdminPaymentsPage"))
 const MyTicketsPage = lazy(() => import("./pages/MyTicketsPage"))
 const ProfilePage = lazy(() => import("./pages/ProfilePage"))
-const CartPage = lazy(() => import("./pages/CartPage"))
+// const CartPage = lazy(() => import("./pages/CartPage"))
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"))
 
 // Company, Support & Legal Informational Pages
@@ -84,10 +86,13 @@ const App = () => {
     <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
       <div className="min-h-screen bg-background flex flex-col">
         <Suspense fallback={<LoadingScreen />}>
-          <Routes>
+            {/* SessionWatcher sits outside <Routes> but inside BrowserRouter — useNavigate works here */}
+            <SessionWatcher />
+            <Routes>
             {/* ===== ADMIN ROUTES - no header/footer ===== */}
             <Route path="/admin/login" element={<AdminLoginPage />} />
             <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin/payments" element={<AdminRoute><AdminPaymentsPage /></AdminRoute>} />
             <Route path="/admin/events/:eventId/sections" element={<AdminRoute><AdminSectionsPage /></AdminRoute>} />
 
             {/* ===== PUBLIC ROUTES - with conditional footer ===== */}
@@ -97,7 +102,7 @@ const App = () => {
               <Route path="/event/:id/section/:sectionId" element={<SectionDetailsPage />} />
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/payment" element={<PaymentPage />} />
-              <Route path="/cart" element={<CartPage />} />
+              <Route path="/cart" element={<Navigate to="/" replace />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/my-tickets" element={<MyTicketsPage />} />
               <Route path="/favorites" element={<div>Favorites Coming Soon</div>} />

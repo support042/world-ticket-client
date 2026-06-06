@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, User, Menu, X, ShoppingCart, Sun, Moon, Ticket, LogOut } from "lucide-react";
+import { Search, User, Menu, X, Sun, Moon, Ticket, LogOut } from "lucide-react";
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from "@/store/authStore";
@@ -13,7 +13,7 @@ import {
 import AuthForm from "@/components/auth/AuthForm";
 import { useTheme } from "@/components/ThemeProvider";
 import type { AuthMode } from "@/types";
-import { useCartStore } from "@/store/cartStore";
+// import { useCartStore } from "@/store/cartStore";
 import { useEventsStore } from "@/store/eventsStore";
 import {
   DropdownMenu,
@@ -33,7 +33,7 @@ export default function Header() {
     const location = useLocation();
     const { user, isAuthenticated, logout } = useAuthStore();
     const { theme, setTheme } = useTheme();
-    const { items, selectedEvent } = useCartStore();
+    // const { items, selectedEvent } = useCartStore();
     const { searchQuery, setSearchQuery } = useEventsStore()
 
     // Only show search bar on the home page
@@ -89,7 +89,7 @@ export default function Header() {
                             to="/my-tickets" 
                             className={`relative text-sm font-bold transition-colors hover:text-primary flex items-center h-16 ${location.pathname === '/my-tickets' ? 'text-primary' : 'text-muted-foreground'}`}
                         >
-                            My Tickets
+                            My Reservations
                             {location.pathname === '/my-tickets' && (
                                 <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full" />
                             )}
@@ -104,8 +104,8 @@ export default function Header() {
                         </Button>
 
                         <div className="flex items-center gap-3">
-                           {/* Cart Icon - Always visible if items exist, or if user is on product pages */}
-                           {(items.length > 0 || selectedEvent) && (
+                           {/* Cart Icon - Commented out for reservation focus */}
+                           {/* {(items.length > 0 || selectedEvent) && (
                                <Link to="/cart" className="relative p-2 rounded-full hover:bg-muted transition-colors mr-1">
                                    <ShoppingCart className={`h-5 w-5 ${location.pathname === '/cart' ? 'text-primary' : ''}`} />
                                    {items.length > 0 && (
@@ -117,7 +117,7 @@ export default function Header() {
                                        <span className="absolute bottom-0 left-[20%] w-[60%] h-0.5 bg-primary rounded-full transition-all" />
                                    )}
                                </Link>
-                           )}
+                           )} */}
 
                            {isAuthenticated ? (
                                <DropdownMenu>
@@ -143,7 +143,7 @@ export default function Header() {
                                        </DropdownMenuItem>
                                        <DropdownMenuItem onClick={() => navigate('/my-tickets')} className="rounded-lg cursor-pointer py-2 px-3 focus:bg-primary/5">
                                            <Ticket className="mr-2 h-4 w-4" />
-                                           <span>Manage Tickets</span>
+                                           <span>My Reservations</span>
                                        </DropdownMenuItem>
                                        <DropdownMenuSeparator className="my-2" />
                                        <DropdownMenuItem onClick={logout} className="rounded-lg cursor-pointer py-2 px-3 text-destructive focus:bg-destructive/5 focus:text-destructive">
@@ -181,7 +181,8 @@ export default function Header() {
                      </nav>
                      {/* Mobile right side - cart + theme toggle + hamburger */}
                      <div className="flex items-center gap-1 md:hidden">
-                        {(items.length > 0 || selectedEvent) && (
+                        {/* Cart Icon - Commented out for reservation focus */}
+                        {/* {(items.length > 0 || selectedEvent) && (
                             <Link to="/cart" className="relative p-2 rounded-full hover:bg-muted transition-colors">
                                 <ShoppingCart className={`h-5 w-5 ${location.pathname === '/cart' ? 'text-primary' : ''}`} />
                                 {items.length > 0 && (
@@ -190,7 +191,7 @@ export default function Header() {
                                     </span>
                                 )}
                             </Link>
-                        )}
+                        )} */}
                         <Button variant="ghost" size="icon" onClick={toggleTheme} className="w-9 h-9">
                             {theme === 'dark' 
                                 ? <Sun className="h-4 w-4" /> 
@@ -241,7 +242,7 @@ export default function Header() {
                     {/* <Link to="/favorites" className="text-sm font-medium hover:text-primary" onClick={() => setMobileMenuOpen(false)}>Favorites</Link> */}
 
                     <Link to="/my-tickets" className="text-sm font-medium hover:text-primary" onClick={() => setMobileMenuOpen(false)}>
-                    My Tickets
+                    My Reservations
                     </Link>
 
                     {isAuthenticated ? (

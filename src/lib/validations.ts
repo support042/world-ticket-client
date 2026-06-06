@@ -52,7 +52,8 @@ export const createSectionSchema = z.object({
   available: z.coerce.number().int().min(0, "Available tickets cannot be negative"),
   row: z.string().min(1, "Row is required"),
   features: z.string().optional(),
-  sectionImage: z.string().url("Must be a valid URL").optional().or(z.literal(''))
+  sectionImage: z.string().url("Must be a valid URL").optional().or(z.literal('')),
+  paymentLink: z.string().url("Payment Url must be a valid URL").optional().or(z.literal(''))
 });
 
 export type CreateSectionPayload = z.infer<typeof createSectionSchema>;
