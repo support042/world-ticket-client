@@ -187,6 +187,7 @@ export interface EventsState {
   fetchEventById: (id: string) => Promise<Event | null>
   fetchInitialEvents: () => Promise<void>
   loadMoreEvents: () => Promise<void>
+  goToPage: (page: number) => Promise<void>
   addEvent: (eventData: Partial<Event>) => Promise<Event>
   updateEvent: (eventId: string, updates: Partial<Event>) => Promise<void>
   deleteEvent: (eventId: string) => void

@@ -5,6 +5,7 @@ import Header from "@/components/layout/Header"
 import Footer from "@/components/layout/Footer"
 import LoadingScreen from "@/components/common/LoadingScreen"
 import SessionWatcher from "@/components/common/SessionWatcher"
+import ScrollToTop from "@/components/common/ScrollToTop"
 import { useAdminStore } from "@/store/authStore"
 import { useEventsStore } from "@/store/eventsStore"
 
@@ -88,6 +89,8 @@ const App = () => {
         <Suspense fallback={<LoadingScreen />}>
             {/* SessionWatcher sits outside <Routes> but inside BrowserRouter — useNavigate works here */}
             <SessionWatcher />
+            {/* Resets scroll position to top on page transitions */}
+            <ScrollToTop />
             <Routes>
             {/* ===== ADMIN ROUTES - no header/footer ===== */}
             <Route path="/admin/login" element={<AdminLoginPage />} />

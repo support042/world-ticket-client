@@ -26,7 +26,7 @@ export const useEventsStore = create<EventsState>()(
       currentPage: 1,
       totalPages: 1,
       hasMore: false,
-      eventsPerPage: 20,
+      eventsPerPage: 6,
       totalResults: 0,
 
       fetchInitialEvents: async () => {
@@ -67,6 +67,27 @@ export const useEventsStore = create<EventsState>()(
           })
         } catch (error) {
           logger.error('Failed to load more events:', error)
+          set({ isFetching: false })
+        }
+      },
+
+      goToPage: async (page: number) => {
+        const { isFetching, filters, searchQuery, eventsPerPage } = get()
+        if (isFetching) return
+
+        set({ isFetching: true })
+        try {
+          const { events, total } = await eventsService.getEvents(filters, searchQuery, page, eventsPerPage)
+          set({ 
+            events: events || [], 
+            currentPage: page,
+            totalResults: total || (events ? events.length : 0),
+            totalPages: Math.ceil((total || (events ? events.length : 0)) / eventsPerPage),
+            hasMore: total ? (page * eventsPerPage) < total : false,
+            isFetching: false 
+          })
+        } catch (error) {
+          logger.error('Failed to fetch page events:', error)
           set({ isFetching: false })
         }
       },
