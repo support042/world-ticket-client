@@ -4,11 +4,39 @@ import { logger } from '@/lib/logger';
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://api.mockbackend.local',
-  timeout: 10000,
+  // 30s timeout — free-tier servers (Render, Railway, Fly.io) can take 15-25s
+  // to wake from sleep on the first request. 10s was too short.
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// ─── Live token getters ───────────────────────────────────────────────────────
+// Instead of reading from localStorage (which has async flush delays from
+// Zustand's persist middleware), we use in-memory getters registered by the
+// stores themselves. This prevents the race condition where a user logs in and
+// immediately triggers an API call before localStorage has been written.
+let _getUserToken: (() => string | null) | null = null;
+let _getAdminToken: (() => string | null) | null = null;
+
+export function registerUserTokenGetter(fn: () => string | null) {
+  _getUserToken = fn;
+}
+export function registerAdminTokenGetter(fn: () => string | null) {
+  _getAdminToken = fn;
+}
+
+// Fallback: read from localStorage (used before stores register their getters)
+function readTokenFromStorage(storageKey: string): string | null {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.token ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // ─── Helper: fire the session-expired event ───────────────────────────────────
 // This is a plain DOM event so api.ts (a non-React module) can trigger it.
@@ -21,34 +49,31 @@ function fireSessionExpired(isAdmin: boolean) {
 
 // ─── Request Interceptor ─────────────────────────────────────────────────────
 // 1. Picks the right token (admin vs user) based on route
-// 2. Checks the token BEFORE sending — if already expired, fire event immediately
+// 2. Reads from live in-memory getters first (set by auth stores), with a
+//    localStorage fallback for edge cases before stores initialize
+// 3. Checks the token BEFORE sending — if already expired, fire event immediately
 apiClient.interceptors.request.use(
   (config) => {
     let token: string | null = null;
     let isAdminRoute = false;
 
-    try {
-      const authData  = JSON.parse(localStorage.getItem('auth-storage')  || '{"state":{}}');
-      const adminData = JSON.parse(localStorage.getItem('admin-storage') || '{"state":{}}');
+    isAdminRoute = !!(
+      config.url &&
+      (config.url.startsWith('/admin') ||
+       config.url.startsWith('admin') ||
+       config.url.includes('/admin/'))
+    );
 
-      const adminToken = adminData.state?.token ?? null;
-      const userToken  = authData.state?.token  ?? null;
-
-      isAdminRoute = !!(
-        config.url &&
-        (config.url.startsWith('/admin') ||
-         config.url.startsWith('admin') ||
-         config.url.includes('/admin/'))
-      );
-
-      token = isAdminRoute ? adminToken : userToken;
-    } catch (e) {
-      logger.error('Failed to parse auth tokens', e);
+    // Prefer live in-memory getters (no flush delay), fall back to localStorage
+    if (isAdminRoute) {
+      token = _getAdminToken ? _getAdminToken() : readTokenFromStorage('admin-storage');
+    } else {
+      token = _getUserToken ? _getUserToken() : readTokenFromStorage('auth-storage');
     }
 
     // ── Proactive expiry check ────────────────────────────────────────────────
     // Skip for login endpoints so the login form itself can still get a response
-    const isLoginRequest = config.url?.includes('/login');
+    const isLoginRequest = config.url?.includes('/login') || config.url?.includes('/register');
     if (token && !isLoginRequest && isTokenExpired(token)) {
       logger.warn(`[api] Token expired before request to ${config.url}. Logging out.`);
       fireSessionExpired(isAdminRoute);

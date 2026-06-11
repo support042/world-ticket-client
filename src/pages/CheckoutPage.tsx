@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Clock, DollarSign, Flame, Info, RefreshCw, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -63,8 +63,15 @@ export default function CheckoutPage() {
   })
   const [errors, setErrors] = useState<CheckoutFormErrors>({})
   const [showAuthForm, setShowAuthForm] = useState<boolean>(false)
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [showSectionDetails, setShowSectionDetails] = useState<boolean>(false)
   const [countdown, setCountdown] = useState<number>(599)
+
+  // When we call clearCart() after a successful payment initiation, Zustand
+  // clears selectedSection/selectedEvent, which would normally trigger the
+  // "if no cart → navigate('/')" useEffect below. This ref lets us skip that
+  // guard when we are intentionally navigating away to /my-tickets.
+  const isNavigatingAway = useRef(false)
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -77,6 +84,7 @@ export default function CheckoutPage() {
   }, [])
 
   useEffect(() => {
+    if (isNavigatingAway.current) return
     if (!selectedEvent || !selectedSection) navigate('/')
   }, [selectedEvent, selectedSection, navigate])
 
@@ -116,35 +124,83 @@ export default function CheckoutPage() {
   }
 
   // ── handleContinue (Stripe external-link flow) ───────────────────────────
-  // When the section has a paymentLink we open the Stripe-hosted page in a new
-  // tab and fire initiatePayment() so the server can track the visit/click.
-  // The old navigate('/payment') path is preserved below (commented out) for
-  // when we bring back our own Stripe integration later.
   const handleContinue = async () => {
+    // ── Auth guard ──────────────────────────────────────────────────────────
+    if (!isAuthenticated) {
+      setShowAuthForm(true)
+      setAuthMode('signin')
+      setTimeout(() => {
+        const el = document.getElementById('checkout-auth-form')
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 50)
+      return
+    }
+
     if (!validateForm()) return
 
-    // Save contact info to the store regardless of which path we take
     setContactInfo(formData)
 
     const paymentLink = selectedSection?.paymentLink
 
     if (paymentLink) {
-      // Must successfully notify backend that payment was initiated
+      // ── CRITICAL: Open the window SYNCHRONOUSLY in the click handler ──────
+      // Browsers treat window.open() called after an async/await as a delayed
+      // script (not a direct user gesture) and silently block the popup.
+      // By opening 'about:blank' here — before any await — the popup is always
+      // allowed. We then point the already-open window at the real URL once the
+      // API call succeeds.
+      const paymentWindow = window.open('', '_blank', 'noopener')
+
+      // Show a friendly loading screen in the new tab while the API runs
+      if (paymentWindow) {
+        paymentWindow.document.write(
+          '<!DOCTYPE html><html><head>' +
+          '<title>Preparing Checkout\u2026</title>' +
+          '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+          '<style>' +
+          '*{box-sizing:border-box;margin:0;padding:0}' +
+          'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
+          'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+          'min-height:100vh;background:#f9fafb;color:#374151}' +
+          '.spinner{width:36px;height:36px;border:3px solid #e5e7eb;' +
+          'border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:20px}' +
+          '@keyframes spin{to{transform:rotate(360deg)}}' +
+          'h2{font-size:1.125rem;font-weight:600;margin-bottom:8px}' +
+          'p{font-size:.875rem;color:#6b7280}' +
+          '</style></head><body>' +
+          '<div class="spinner"></div>' +
+          '<h2>Preparing your secure checkout\u2026</h2>' +
+          '<p>Please wait while we confirm your reservation.</p>' +
+          '</body></html>'
+        )
+        paymentWindow.document.close()
+      }
+
       try {
         await initiatePayment(selectedSection!.id, paymentLink)
-        // Open the Stripe-hosted payment link in a new tab ONLY after successful initiation
-        window.open(paymentLink, '_blank', 'noopener,noreferrer')
-        // Clear cart and redirect parent window to My Tickets page
+
+        // Point the already-open tab at the real payment URL
+        if (paymentWindow && !paymentWindow.closed) {
+          paymentWindow.location.href = paymentLink
+        } else {
+          // Fallback: tab was somehow closed, try a fresh open
+          window.open(paymentLink, '_blank', 'noopener,noreferrer')
+        }
+
+        // ── Set flag BEFORE clearCart() ──────────────────────────────────
+        // clearCart() nulls out selectedSection/selectedEvent which triggers
+        // the useEffect guard on line ~87. Without this flag it would
+        // immediately fire navigate('/') and override our navigate below.
+        isNavigatingAway.current = true
         clearCart()
         navigate('/my-tickets')
       } catch (err: any) {
+        // Close the blank loading tab so we don't leave it orphaned
+        if (paymentWindow && !paymentWindow.closed) paymentWindow.close()
         logger.error('Failed to initiate payment tracking:', err)
-        toast.error(err?.message || 'Failed to initiate payment. Please log in or try again.')
+        toast.error(err?.message || 'Failed to initiate payment. Please try again.')
       }
     } else {
-      // ── Fallback: own Stripe integration (kept for future use) ──────────
-      // navigate('/payment')
-      // ────────────────────────────────────────────────────────────────────
       logger.warn('No paymentLink found on this section – no payment route configured.')
     }
   }
@@ -219,11 +275,18 @@ export default function CheckoutPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {showAuthForm && !isAuthenticated ? (
-                  <div className="border rounded-lg p-4">
+                  <div id="checkout-auth-form" className="border rounded-lg p-4">
+                    <p className="text-sm font-semibold mb-3">
+                      {authMode === 'signin' ? 'Sign in to continue' : 'Create an account to continue'}
+                    </p>
                     <AuthForm
-                      mode="signin"
-                      onToggleMode={() => {}}
-                      onSuccess={() => setShowAuthForm(false)}
+                      mode={authMode}
+                      onToggleMode={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
+                      onSuccess={() => {
+                        setShowAuthForm(false)
+                        // After successful login, automatically proceed if form is valid
+                        setTimeout(() => handleContinue(), 100)
+                      }}
                     />
                   </div>
                 ) : isAuthenticated && user ? (
@@ -322,58 +385,106 @@ export default function CheckoutPage() {
             </Card>
 
             {/* Gift Option */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Buying this as a gift?</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RadioGroup
-                  value={giftOption ? 'yes' : 'no'}
-                  onValueChange={(value) => setGiftOption(value === 'yes')}
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="yes" id="gift-yes" />
-                    <Label htmlFor="gift-yes">Yes</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="no" id="gift-no" />
-                    <Label htmlFor="gift-no">No</Label>
-                  </div>
-                </RadioGroup>
-              </CardContent>
-            </Card>
-
-            {/* Team Support */}
-            {selectedEvent.teams && selectedEvent.teams.length > 0 && (
-              <Card>
+            <div className="relative">
+              <Card className={!isAuthenticated ? 'opacity-60 select-none' : ''}>
                 <CardHeader>
-                  <CardTitle className="text-lg">Which team are you rooting for?</CardTitle>
+                  <CardTitle className="text-lg">Buying this as a gift?</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <RadioGroup
-                    value={teamSupport ?? ''}
-                    onValueChange={setTeamSupport}
+                    value={giftOption ? 'yes' : 'no'}
+                    onValueChange={(value) => setGiftOption(value === 'yes')}
                   >
-                    {selectedEvent.teams.map((team) => (
-                      <div key={team.code} className="flex items-center space-x-2">
-                        <RadioGroupItem value={team.code} id={`team-${team.code}`} />
-                        <Label htmlFor={`team-${team.code}`} className="flex items-center gap-2 cursor-pointer">
-                          {team.flag?.startsWith('http') ? (
-                            <img 
-                              src={team.flag} 
-                              alt={`${team.name} flag`} 
-                              className="h-3 w-5 md:h-4 md:w-6 object-cover rounded-sm shadow-xs" 
-                            />
-                          ) : (
-                            <span className="text-lg">{team.flag}</span>
-                          )}
-                          <span className="font-medium">{team.name}</span>
-                        </Label>
-                      </div>
-                    ))}
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="yes" id="gift-yes" disabled={!isAuthenticated} />
+                      <Label htmlFor="gift-yes" className={!isAuthenticated ? 'text-muted-foreground' : ''}>Yes</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="no" id="gift-no" disabled={!isAuthenticated} />
+                      <Label htmlFor="gift-no" className={!isAuthenticated ? 'text-muted-foreground' : ''}>No</Label>
+                    </div>
                   </RadioGroup>
                 </CardContent>
               </Card>
+              {/* Auth overlay */}
+              {!isAuthenticated && (
+                <div
+                  className="absolute inset-0 rounded-xl flex items-center justify-center cursor-pointer z-10"
+                  onClick={() => {
+                    setShowAuthForm(true)
+                    setAuthMode('signin')
+                    setTimeout(() => {
+                      const el = document.getElementById('checkout-auth-form')
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }, 50)
+                  }}
+                >
+                  <div className="bg-background/80 backdrop-blur-[2px] border border-border/60 rounded-lg px-4 py-2.5 flex items-center gap-2 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-muted-foreground shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <span className="text-xs font-medium text-muted-foreground">Sign in to unlock</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Team Support */}
+            {selectedEvent.teams && selectedEvent.teams.length > 0 && (
+              <div className="relative">
+                <Card className={!isAuthenticated ? 'opacity-60 select-none' : ''}>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Which team are you rooting for?</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RadioGroup
+                      value={teamSupport ?? ''}
+                      onValueChange={setTeamSupport}
+                    >
+                      {selectedEvent.teams.map((team) => (
+                        <div key={team.code} className="flex items-center space-x-2">
+                          <RadioGroupItem value={team.code} id={`team-${team.code}`} disabled={!isAuthenticated} />
+                          <Label htmlFor={`team-${team.code}`} className={`flex items-center gap-2 ${!isAuthenticated ? 'cursor-default text-muted-foreground' : 'cursor-pointer'}`}>
+                            {team.flag?.startsWith('http') ? (
+                              <img 
+                                src={team.flag} 
+                                alt={`${team.name} flag`} 
+                                className="h-3 w-5 md:h-4 md:w-6 object-cover rounded-sm shadow-xs" 
+                              />
+                            ) : (
+                              <span className="text-lg">{team.flag}</span>
+                            )}
+                            <span className="font-medium">{team.name}</span>
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </CardContent>
+                </Card>
+                {/* Auth overlay */}
+                {!isAuthenticated && (
+                  <div
+                    className="absolute inset-0 rounded-xl flex items-center justify-center cursor-pointer z-10"
+                    onClick={() => {
+                      setShowAuthForm(true)
+                      setAuthMode('signin')
+                      setTimeout(() => {
+                        const el = document.getElementById('checkout-auth-form')
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }, 50)
+                    }}
+                  >
+                    <div className="bg-background/80 backdrop-blur-[2px] border border-border/60 rounded-lg px-4 py-2.5 flex items-center gap-2 shadow-sm">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-muted-foreground shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      <span className="text-xs font-medium text-muted-foreground">Sign in to unlock</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* ── Continue / Pay button ───────────────────────────────────────────
@@ -401,8 +512,10 @@ export default function CheckoutPage() {
                     'transition-colors focus-visible:outline-none focus-visible:ring-2',
                     'focus-visible:ring-ring focus-visible:ring-offset-2',
                     'disabled:pointer-events-none disabled:opacity-50',
-                    // variant=default colours
-                    'bg-primary text-primary-foreground hover:bg-primary/90',
+                    // variant=default colours — muted when unauthenticated
+                    isAuthenticated
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'bg-muted text-muted-foreground border border-border',
                     // size=lg padding
                     'h-11 px-8',
                     // full-width
@@ -412,7 +525,19 @@ export default function CheckoutPage() {
                   ].join(' ')
                 }
               >
-                {isInitiating ? 'Processing…' : 'Continue to Payment'}
+                {isInitiating ? (
+                  'Processing…'
+                ) : !isAuthenticated ? (
+                  <span className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    Sign in to Continue
+                  </span>
+                ) : (
+                  'Continue to Payment'
+                )}
               </a>
             ) : (
               /* No paymentLink – fall back to the old Button (navigates nowhere
@@ -421,9 +546,22 @@ export default function CheckoutPage() {
                 className="w-full"
                 size="lg"
                 disabled={isInitiating}
+                variant={!isAuthenticated ? 'outline' : 'default'}
                 onClick={handleContinue}
               >
-                {isInitiating ? 'Processing…' : 'Continue'}
+                {isInitiating ? (
+                  'Processing…'
+                ) : !isAuthenticated ? (
+                  <span className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    Sign in to Continue
+                  </span>
+                ) : (
+                  'Continue'
+                )}
               </Button>
             )}
           </div>

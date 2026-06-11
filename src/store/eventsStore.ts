@@ -13,6 +13,19 @@ const defaultFilters: EventFilters = {
   priceRange: { min: 0, max: 50000 }
 }
 
+// Helper to retry asynchronous API operations with exponential backoff.
+// Helps handle backend cold-starts on serverless/free hosting tiers.
+async function fetchWithRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1500): Promise<T> {
+  try {
+    return await fn()
+  } catch (error) {
+    if (retries <= 0) throw error
+    logger.warn(`[api-retry] Request failed, retrying in ${delayMs}ms... (${retries} retries left)`)
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+    return fetchWithRetry(fn, retries - 1, delayMs * 1.5)
+  }
+}
+
 export const useEventsStore = create<EventsState>()(
   persist(
     (set, get) => ({
@@ -21,6 +34,7 @@ export const useEventsStore = create<EventsState>()(
       searchQuery: '',
       isLoading: false,
       isFetching: false,
+      fetchError: null,
       
       // Pagination State
       currentPage: 1,
@@ -29,11 +43,15 @@ export const useEventsStore = create<EventsState>()(
       eventsPerPage: 6,
       totalResults: 0,
 
+      clearFetchError: () => set({ fetchError: null }),
+
       fetchInitialEvents: async () => {
-        set({ isFetching: true, currentPage: 1 })
+        set({ isFetching: true, currentPage: 1, fetchError: null })
         try {
           const { filters, searchQuery, eventsPerPage } = get()
-          const { events, total } = await eventsService.getEvents(filters, searchQuery, 1, eventsPerPage)
+          const { events, total } = await fetchWithRetry(() =>
+            eventsService.getEvents(filters, searchQuery, 1, eventsPerPage)
+          )
           
           set({ 
             events: events || [], 
@@ -42,9 +60,12 @@ export const useEventsStore = create<EventsState>()(
             hasMore: (total || (events ? events.length : 0)) > eventsPerPage,
             isFetching: false 
           })
-        } catch (error) {
+        } catch (error: any) {
           logger.error('Failed to fetch events from API:', error)
-          set({ isFetching: false })
+          set({ 
+            isFetching: false,
+            fetchError: error?.message || 'Failed to load events. Please try again.'
+          })
         }
       },
 
@@ -56,7 +77,9 @@ export const useEventsStore = create<EventsState>()(
         set({ isFetching: true })
         try {
           const nextPage = currentPage + 1
-          const { events: newEvents, total } = await eventsService.getEvents(filters, searchQuery, nextPage, eventsPerPage)
+          const { events: newEvents, total } = await fetchWithRetry(() =>
+            eventsService.getEvents(filters, searchQuery, nextPage, eventsPerPage)
+          )
           
           set({ 
             events: [...currentEvents, ...(newEvents || [])],
@@ -75,9 +98,11 @@ export const useEventsStore = create<EventsState>()(
         const { isFetching, filters, searchQuery, eventsPerPage } = get()
         if (isFetching) return
 
-        set({ isFetching: true })
+        set({ isFetching: true, fetchError: null })
         try {
-          const { events, total } = await eventsService.getEvents(filters, searchQuery, page, eventsPerPage)
+          const { events, total } = await fetchWithRetry(() =>
+            eventsService.getEvents(filters, searchQuery, page, eventsPerPage)
+          )
           set({ 
             events: events || [], 
             currentPage: page,
@@ -86,9 +111,12 @@ export const useEventsStore = create<EventsState>()(
             hasMore: total ? (page * eventsPerPage) < total : false,
             isFetching: false 
           })
-        } catch (error) {
+        } catch (error: any) {
           logger.error('Failed to fetch page events:', error)
-          set({ isFetching: false })
+          set({ 
+            isFetching: false,
+            fetchError: error?.message || 'Failed to load page. Please try again.'
+          })
         }
       },
 
@@ -160,7 +188,7 @@ export const useEventsStore = create<EventsState>()(
         fetchEventById: async (id: string) => {
           set({ isLoading: true })
           try {
-            const fullEvent = await eventsService.getEvent(id)
+            const fullEvent = await fetchWithRetry(() => eventsService.getEvent(id))
             set((state: EventsState) => ({
               events: state.events.some(e => e.id === id)
                 ? state.events.map(e => (e.id === id ? fullEvent : e))

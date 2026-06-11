@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuthStore, useAdminStore } from '@/store/authStore'
 
@@ -17,6 +17,7 @@ import { useAuthStore, useAdminStore } from '@/store/authStore'
  */
 export default function SessionWatcher() {
   const navigate    = useNavigate()
+  const location    = useLocation()
   const { logout }       = useAuthStore()
   const { adminLogout }  = useAdminStore()
 
@@ -38,8 +39,23 @@ export default function SessionWatcher() {
           duration: 6000,
         })
       } else {
+        // Save the page they were on so we can show it in the toast
+        const currentPath = location.pathname
         logout()
-        navigate('/', { replace: true })
+
+        // If they were on a protected page, go back to '/' since
+        // UserRoute will show the sign-in prompt on those pages.
+        // For all other pages (checkout, event detail) stay on the same path.
+        const protectedPaths = ['/my-tickets', '/profile']
+        const isProtected = protectedPaths.some(p => currentPath.startsWith(p))
+        
+        if (isProtected) {
+          // UserRoute will render the sign-in prompt for them automatically
+          navigate(currentPath, { replace: true })
+        }
+        // If on a non-protected page (e.g. /checkout), stay there —
+        // the page itself handles the auth state.
+
         toast.error('Session expired', {
           description: 'Please sign in again to continue where you left off.',
           duration: 6000,
@@ -52,7 +68,7 @@ export default function SessionWatcher() {
 
     window.addEventListener('auth:session-expired', handler)
     return () => window.removeEventListener('auth:session-expired', handler)
-  }, [navigate, logout, adminLogout])
+  }, [navigate, location, logout, adminLogout])
 
   // Renders nothing — this is a behaviour-only component
   return null

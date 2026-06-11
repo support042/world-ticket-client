@@ -178,6 +178,8 @@ export interface EventsState {
   hasMore: boolean
   eventsPerPage: number
   totalResults: number
+  fetchError: string | null
+  clearFetchError: () => void
   
   setSearchQuery: (query: string) => void
   setFilters: (filters: Partial<EventFilters>) => void

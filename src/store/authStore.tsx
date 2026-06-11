@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import type { AuthState, AdminState, SignupData, User } from "@/types"
 import { authService } from "@/services/auth.service"
+import { registerUserTokenGetter, registerAdminTokenGetter } from "@/lib/api"
 
 export const useAuthStore = create<AuthState>()(
     persist(
@@ -96,6 +97,10 @@ export const useAuthStore = create<AuthState>()(
     )
 )
 
+// Register a live in-memory token getter so api.ts never has to wait
+// for Zustand's persist middleware to flush to localStorage.
+registerUserTokenGetter(() => useAuthStore.getState().token)
+
 export const useAdminStore = create<AdminState>()(
   persist(
     (set, get) => ({
@@ -151,3 +156,6 @@ export const useAdminStore = create<AdminState>()(
     }
   )
 )
+
+// Register a live in-memory token getter for the admin store too.
+registerAdminTokenGetter(() => useAdminStore.getState().token)

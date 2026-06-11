@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Heart, Users, CheckCircle, Ticket, ShieldCheck } from 'lucide-react'
+import { Heart, Users, CheckCircle, Ticket, ShieldCheck, AlertTriangle, RefreshCw } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import EventCard from '@/components/events/EventCard'
@@ -39,7 +39,9 @@ export default function HomePage() {
     isFetching, 
     currentPage, 
     totalPages, 
-    goToPage 
+    goToPage,
+    fetchError,
+    fetchInitialEvents
   } = useEventsStore()
   
   const { isAuthenticated } = useAuthStore()
@@ -195,13 +197,53 @@ export default function HomePage() {
                     </h2>
                   </div>
 
+                  {fetchError && displayedEvents.length > 0 && (
+                    <div className="mb-4 p-3.5 border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 rounded-xl flex items-center justify-between gap-3 text-amber-700 dark:text-amber-300">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                        <span className="text-xs font-semibold leading-relaxed">
+                          Server timed out or failed to respond. Showing offline cached data.
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => fetchInitialEvents()}
+                        disabled={isFetching}
+                        className="text-xs font-bold underline hover:no-underline cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${isFetching ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </button>
+                    </div>
+                  )}
+
                   <div className={`space-y-4 transition-all duration-200 ${isFetching ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
-                    {isFetching && displayedEvents.length === 0
-                      ? Array.from({ length: 4 }).map((_, i) => <EventCardSkeleton key={i} />)
-                      : displayedEvents.map((event) => (
-                          <EventCard key={event.id} event={event} />
-                        ))
-                    }
+                    {fetchError && displayedEvents.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center p-8 border rounded-2xl bg-card text-center shadow-xs">
+                        <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-4">
+                          <AlertTriangle className="h-6 w-6" />
+                        </div>
+                        <h3 className="font-bold text-lg text-foreground mb-1">
+                          Server is taking too long to respond
+                        </h3>
+                        <p className="text-sm text-muted-foreground max-w-sm mb-6 leading-relaxed">
+                          The server appears to be sleeping. This is common on free-tier hosting during the first request. Let's try requesting again.
+                        </p>
+                        <button
+                          onClick={() => fetchInitialEvents()}
+                          disabled={isFetching}
+                          className="flex items-center gap-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-sm px-6 py-2.5 rounded-xl transition-all hover:scale-[1.02] active:scale-98 cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                          {isFetching ? 'Retrying...' : 'Retry Connection'}
+                        </button>
+                      </div>
+                    ) : (
+                      isFetching && displayedEvents.length === 0
+                        ? Array.from({ length: 4 }).map((_, i) => <EventCardSkeleton key={i} />)
+                        : displayedEvents.map((event) => (
+                            <EventCard key={event.id} event={event} />
+                          ))
+                    )}
                   </div>
 
                   {/* Numbered Pagination Section */}
