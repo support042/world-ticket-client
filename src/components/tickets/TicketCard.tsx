@@ -1,12 +1,14 @@
 import { MapPin, User, CalendarDays, CheckCircle2, Clock } from 'lucide-react'
-import type { Order } from '@/store/ordersStore'
+import type { Order } from '@/types'
 import { formatDate, formatTime } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
 export default function TicketCard({ order }: { order: Order }) {
-  const { event, section, quantity, contactInfo, id } = order
+  const { section, quantity, contactInfo, id } = order
   const now = new Date()
-  const eventDate = new Date(`${event.date}T${event.time}`)
+  const eventDate = section.eventDate && section.eventTime 
+    ? new Date(`${section.eventDate}T${section.eventTime}`) 
+    : now
   const isPast = eventDate < now
 
   return (
@@ -33,13 +35,10 @@ export default function TicketCard({ order }: { order: Order }) {
 
         {/* Ticket Header (Event Banner) */}
         <div className="relative h-28 bg-muted overflow-hidden">
-           {event.image && (
-               <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
-           )}
-           <div className="absolute inset-0 bg-linear-to-t from-background via-background/40 to-black/20" />
+           <div className="absolute inset-0 bg-linear-to-t from-background via-background/40 to-black/20 bg-slate-900" />
            <div className="absolute bottom-3 left-6 right-6">
-             <div className="text-[9px] font-black tracking-[0.2em] text-primary uppercase mb-0.5 opacity-90">{event.tournament}</div>
-             <div className="text-lg font-black leading-none truncate tracking-tight">{event.title}</div>
+             <div className="text-[9px] font-black tracking-[0.2em] text-primary uppercase mb-0.5 opacity-95">FIFA WORLD CUP</div>
+             <div className="text-lg font-black leading-none truncate tracking-tight text-white">{section.eventTitle || 'World Cup Match'}</div>
            </div>
         </div>
 
@@ -52,38 +51,21 @@ export default function TicketCard({ order }: { order: Order }) {
 
         {/* Ticket Details */}
         <div className="px-6 py-2 space-y-4">
-          {/* Matchup - Minimalist */}
-          {event.teams && event.teams.length === 2 && (
-             <div className="flex justify-between items-center bg-muted/30 rounded-2xl px-5 py-3">
-                <div className="flex flex-col items-center gap-1">
-                   <div className="text-2xl leading-none">{event.teams[0].flag}</div>
-                   <div className="text-[10px] font-black text-muted-foreground">{event.teams[0].code}</div>
-                </div>
-                <div className="h-4 w-px bg-border" />
-                <div className="px-3 text-[9px] font-black text-primary/60 uppercase tracking-widest">VS</div>
-                <div className="h-4 w-px bg-border" />
-                <div className="flex flex-col items-center gap-1">
-                   <div className="text-2xl leading-none">{event.teams[1].flag}</div>
-                   <div className="text-[10px] font-black text-muted-foreground">{event.teams[1].code}</div>
-                </div>
-             </div>
-          )}
-
           {/* Time & Place */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-0.5">
                <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest font-black text-muted-foreground/60">
                   <CalendarDays className="w-2.5 h-2.5" /> Date
                </div>
-               <div className="text-xs font-bold leading-tight">{formatDate(event.date)}</div>
-               <div className="text-[10px] text-muted-foreground font-medium">{formatTime(event.time)}</div>
+               <div className="text-xs font-bold leading-tight">{section.eventDate ? formatDate(section.eventDate) : 'TBD'}</div>
+               <div className="text-[10px] text-muted-foreground font-medium">{section.eventTime ? formatTime(section.eventTime) : 'TBD'}</div>
             </div>
             <div className="space-y-0.5">
                <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest font-black text-muted-foreground/60">
                   <MapPin className="w-2.5 h-2.5" /> Venue
                </div>
-               <div className="text-xs font-bold leading-tight truncate">{event.venue}</div>
-               <div className="text-[10px] text-muted-foreground font-medium truncate">{event.city}</div>
+               <div className="text-xs font-bold leading-tight truncate">{section.eventVenue || 'TBD Stadium'}</div>
+               <div className="text-[10px] text-muted-foreground font-medium truncate">{section.eventCity || 'Qatar'}</div>
             </div>
           </div>
 
@@ -117,7 +99,6 @@ export default function TicketCard({ order }: { order: Order }) {
            <div className="w-full h-12 opacity-90 mb-3 px-2">
               <div className="w-full h-full bg-foreground flex items-center justify-around gap-px p-px">
                 {Array.from({ length: 40 }).map((_, i) => {
-                  // Deterministic width based on index and order ID
                   const charCode = id.charCodeAt(i % id.length)
                   const width = (charCode % 4) + 1
                   return (
@@ -136,7 +117,7 @@ export default function TicketCard({ order }: { order: Order }) {
                <User className="w-3 h-3"/> {contactInfo.firstName} {contactInfo.lastName}
              </div>
              <div className="font-mono bg-muted px-2 py-0.5 rounded uppercase tracking-tighter">
-               #{id.split('_')[1].substring(0, 8)}
+               #{id.substring(0, 8)}
              </div>
            </div>
         </div>

@@ -107,14 +107,31 @@ apiClient.interceptors.response.use(
     }
 
     // Bubble up a clean error with the server's message
-    const serverMessage = error.response?.data?.message || error.message;
+    const serverData = error.response?.data;
+    const serverMessage = serverData?.message || error.message;
+
+    if (error.response?.status === 400 && serverData) {
+      logger.error('API Validation Details:', serverData);
+    }
+
     logger.error('API Error:', {
       status: error.response?.status,
       message: serverMessage,
       url: error.config?.url,
+      errors: serverData?.errors,
     });
 
-    return Promise.reject(new Error(serverMessage));
+    let detailedMessage = serverMessage;
+    if (serverData?.errors && typeof serverData.errors === 'object') {
+      const details = Object.entries(serverData.errors)
+        .map(([field, msg]) => `${field}: ${msg}`)
+        .join(', ');
+      if (details) {
+        detailedMessage = `${serverMessage} (${details})`;
+      }
+    }
+
+    return Promise.reject(new Error(detailedMessage));
   }
 );
 

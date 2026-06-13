@@ -15,7 +15,8 @@ import type { AuthMode } from "@/types"
 // Lazy load pages
 const HomePage = lazy(() => import("@/pages/HomePage"))
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage"))
-const PaymentPage = lazy(() => import("./pages/PaymentPage"))
+const PaymentSuccessPage = lazy(() => import("./pages/PaymentSuccessPage"))
+const PaymentCancelPage = lazy(() => import("./pages/PaymentCancelPage"))
 const EventTicketPage = lazy(() => import("./pages/EventTicketPage"))
 const SectionDetailsPage = lazy(() => import("./pages/SectionDetailsPage"))
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"))
@@ -170,7 +171,8 @@ const App = () => {
               <Route path="/event/:id" element={<EventTicketPage />} />
               <Route path="/event/:id/section/:sectionId" element={<SectionDetailsPage />} />
               <Route path="/checkout" element={<CheckoutPage />} />
-              <Route path="/payment" element={<PaymentPage />} />
+              <Route path="/payment/success" element={<PaymentSuccessPage />} />
+              <Route path="/payment/cancel" element={<PaymentCancelPage />} />
               <Route path="/cart" element={<Navigate to="/" replace />} />
               <Route path="/profile" element={<UserRoute><ProfilePage /></UserRoute>} />
               <Route path="/my-tickets" element={<UserRoute><MyTicketsPage /></UserRoute>} />
