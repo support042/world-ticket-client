@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
-import { CheckCircle2, Ticket, MapPin, ArrowRight, Download, RefreshCw, Printer, AlertTriangle } from 'lucide-react'
+// import { CheckCircle2, Ticket, MapPin, ArrowRight, Download, RefreshCw, Printer, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, Ticket, MapPin, ArrowRight, Printer, RefreshCw, AlertTriangle } from 'lucide-react'
 import { useCartStore } from '@/store/cartStore'
 import { useOrdersStore } from '@/store/ordersStore'
 import { paymentService } from '@/services/payment.service'
@@ -257,9 +258,9 @@ export default function PaymentSuccessPage() {
               <Button variant="outline" size="sm" className="text-xs h-8 bg-card" onClick={() => window.print()}>
                 <Printer className="w-3.5 h-3.5 mr-1" /> Print
               </Button>
-              <Button variant="outline" size="sm" className="text-xs h-8 bg-card" onClick={() => toast.success('Ticket PDF download initiated!')}>
+              {/* <Button variant="outline" size="sm" className="text-xs h-8 bg-card" onClick={() => toast.success('Ticket PDF download initiated!')}>
                 <Download className="w-3.5 h-3.5 mr-1" /> Download PDF
-              </Button>
+              </Button> */}
             </div>
           </div>
 
@@ -371,16 +372,21 @@ export default function PaymentSuccessPage() {
         </Card>
 
         {/* Actions Footer */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/my-tickets" className="sm:flex-1">
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Link to={`/my-tickets/${order.id}`} className="sm:flex-1">
             <Button className="w-full flex items-center justify-center gap-2">
               <Ticket className="w-4 h-4" />
-              View All My Tickets
+              Save / View Ticket Page
               <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
+          <Link to="/my-tickets" className="sm:flex-1">
+            <Button variant="outline" className="w-full flex items-center justify-center gap-2">
+              All My Tickets
+            </Button>
+          </Link>
           <Link to="/" className="sm:flex-1">
-            <Button variant="outline" className="w-full">
+            <Button variant="ghost" className="w-full">
               Back to Home
             </Button>
           </Link>

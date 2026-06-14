@@ -24,6 +24,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"))
 const AdminSectionsPage = lazy(() => import("./pages/admin/AdminSectionsPage"))
 const AdminPaymentsPage = lazy(() => import("./pages/admin/AdminPaymentsPage"))
 const MyTicketsPage = lazy(() => import("./pages/MyTicketsPage"))
+const TicketViewerPage = lazy(() => import("./pages/TicketViewerPage"))
 const ProfilePage = lazy(() => import("./pages/ProfilePage"))
 // const CartPage = lazy(() => import("./pages/CartPage"))
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"))
@@ -176,6 +177,7 @@ const App = () => {
               <Route path="/cart" element={<Navigate to="/" replace />} />
               <Route path="/profile" element={<UserRoute><ProfilePage /></UserRoute>} />
               <Route path="/my-tickets" element={<UserRoute><MyTicketsPage /></UserRoute>} />
+              <Route path="/my-tickets/:orderId" element={<UserRoute><TicketViewerPage /></UserRoute>} />
               <Route path="/favorites" element={<div>Favorites Coming Soon</div>} />
               
               {/* Company, Support & Legal Informational Pages */}
