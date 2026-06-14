@@ -1,165 +1,106 @@
 import { create } from 'zustand';
-import { paymentService, type InitiatedUser } from '@/services/payment.service';
+import { paymentService } from '@/services/payment.service';
 import { logger } from '@/lib/logger';
+import type { ContactInfo, Order, CreatePaymentIntentResponse } from '@/types';
 
 // ─── State shape ─────────────────────────────────────────────────────────────
 
 interface PaymentState {
-  // ── Initiated-users list (admin) ──────────────────────────────────────────
-  initiatedUsers: InitiatedUser[];
-  isLoadingUsers: boolean;
-  usersError: string | null;
+  // ── New Stripe Checkout ──────────────────────────────────────────────────
+  isCreatingSession: boolean;
+  sessionError: string | null;
+  createCheckoutSession: (
+    sectionId: string,
+    quantity: number,
+    contactInfo: ContactInfo,
+    giftOption: boolean,
+    teamSupport: string | null
+  ) => Promise<{ sessionId: string; checkoutUrl: string }>;
+  clearSessionError: () => void;
 
-  // Pagination
-  currentPage: number;
-  totalPages: number;
-  totalUsers: number;
-  limit: number;
-
-  // ── My initiated payments (user-facing) ────────────────────────────────────
-  myInitiatedPayments: InitiatedUser[];
-  isLoadingMyPayments: boolean;
-  myPaymentsError: string | null;
-
-  // ── Per-action loading flags ───────────────────────────────────────────────
-  isMarkingPaid: boolean;
-  isInitiating: boolean;
-  actionError: string | null;
-
-  // ── Actions ───────────────────────────────────────────────────────────────
-
-  /**
-   * Admin: load the paginated list of users who have initiated payment.
-   * Replaces the list (for page navigation) rather than appending.
-   */
-  fetchInitiatedUsers: (page?: number, limit?: number) => Promise<void>;
-
-  /**
-   * Admin: mark an initiation record as paid.
-   * Optimistically updates the local list and re-fetches if needed.
-   */
-  markAsPaid: (initiationId: number | string) => Promise<void>;
-
-  /**
-   * User-facing: load the list of payments initiated by the current user.
-   */
-  fetchMyInitiatedPayments: () => Promise<void>;
-
-  /**
-   * User-facing: tell the backend a payment for a section is about to happen.
-   */
-  initiatePayment: (sectionId: string, paymentLink?: string) => Promise<void>;
-
-  /** Clear any action-level error */
-  clearActionError: () => void;
+  // ── Stripe Payment Intents & Orders ──────────────────────────────────────
+  isCreatingIntent: boolean;
+  intentError: string | null;
+  createPaymentIntent: (
+    eventId: string,
+    sectionId: string,
+    quantity: number,
+    currency?: string
+  ) => Promise<CreatePaymentIntentResponse>;
+  
+  isConfirmingOrder: boolean;
+  confirmOrderError: string | null;
+  confirmOrder: (payload: {
+    eventId: string;
+    sectionId: string;
+    quantity: number;
+    totalAmount: number;
+    paymentMethod: string;
+    stripePaymentIntentId: string;
+    contactInfo: ContactInfo;
+  }) => Promise<Order>;
 }
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 export const usePaymentStore = create<PaymentState>((set) => ({
-  // Initial state
-  initiatedUsers: [],
-  isLoadingUsers: false,
-  usersError: null,
+  // New state
+  isCreatingSession: false,
+  sessionError: null,
 
-  currentPage: 1,
-  totalPages: 1,
-  totalUsers: 0,
-  limit: 50,
-
-  myInitiatedPayments: [],
-  isLoadingMyPayments: false,
-  myPaymentsError: null,
-
-  isMarkingPaid: false,
-  isInitiating: false,
-  actionError: null,
-
-  // ── fetchInitiatedUsers ──────────────────────────────────────────────────
-
-  fetchInitiatedUsers: async (page = 1, limit = 50) => {
-    set({ isLoadingUsers: true, usersError: null });
+  createCheckoutSession: async (sectionId, quantity, contactInfo, giftOption, teamSupport) => {
+    set({ isCreatingSession: true, sessionError: null });
     try {
-      const result = await paymentService.getInitiatedUsers(page, limit);
-
-      set({
-        initiatedUsers: result.data,
-        currentPage: result.page,
-        totalPages: result.totalPages,
-        totalUsers: result.total,
-        limit: result.limit,
-        isLoadingUsers: false,
-      });
+      const result = await paymentService.createCheckoutSession(
+        sectionId,
+        quantity,
+        contactInfo,
+        giftOption,
+        teamSupport
+      );
+      set({ isCreatingSession: false });
+      return result;
     } catch (error: any) {
-      logger.error('Failed to fetch initiated users:', error);
-      set({
-        usersError: error?.message ?? 'Failed to load payment initiated users.',
-        isLoadingUsers: false,
-      });
-    }
-  },
-
-  // ── markAsPaid ───────────────────────────────────────────────────────────
-
-  markAsPaid: async (initiationId) => {
-    set({ isMarkingPaid: true, actionError: null });
-    try {
-      await paymentService.markAsPaid(initiationId);
-
-      // Optimistically update the local list — flip the matching record to 'paid'
-      set((state) => ({
-        initiatedUsers: state.initiatedUsers.map((u) =>
-          u.initiationId === initiationId ? { ...u, status: 'paid' } : u
-        ),
-        isMarkingPaid: false,
-      }));
-    } catch (error: any) {
-      logger.error('Failed to mark as paid:', error);
-      set({
-        actionError: error?.message ?? 'Failed to mark payment as paid.',
-        isMarkingPaid: false,
-      });
-      throw error; // re-throw so the UI can react (e.g. show a toast)
-    }
-  },
-
-  // ── fetchMyInitiatedPayments ─────────────────────────────────────────────
-
-  fetchMyInitiatedPayments: async () => {
-    set({ isLoadingMyPayments: true, myPaymentsError: null });
-    try {
-      const result = await paymentService.getMyInitiatedPayments();
-      set({
-        myInitiatedPayments: result,
-        isLoadingMyPayments: false,
-      });
-    } catch (error: any) {
-      logger.error('Failed to fetch my initiated payments:', error);
-      set({
-        myPaymentsError: error?.message ?? 'Failed to load initiated payments.',
-        isLoadingMyPayments: false,
-      });
-    }
-  },
-
-  // ── initiatePayment ──────────────────────────────────────────────────────
-
-  initiatePayment: async (sectionId, paymentLink) => {
-    set({ isInitiating: true, actionError: null });
-    try {
-      await paymentService.paymentInitiated(sectionId, paymentLink);
-      set({ isInitiating: false });
-    } catch (error: any) {
-      logger.error('Failed to initiate payment:', error);
-      set({
-        actionError: error?.message ?? 'Failed to initiate payment.',
-        isInitiating: false,
-      });
+      logger.error('Failed to create checkout session:', error);
+      const errMsg = error?.message ?? 'Failed to create checkout session. Please try again.';
+      set({ sessionError: errMsg, isCreatingSession: false });
       throw error;
     }
   },
 
-  // ── clearActionError ─────────────────────────────────────────────────────
+  clearSessionError: () => set({ sessionError: null }),
 
-  clearActionError: () => set({ actionError: null }),
+  // Stripe Payment Intents & Orders
+  isCreatingIntent: false,
+  intentError: null,
+  isConfirmingOrder: false,
+  confirmOrderError: null,
+
+  createPaymentIntent: async (eventId, sectionId, quantity, currency = 'usd') => {
+    set({ isCreatingIntent: true, intentError: null });
+    try {
+      const result = await paymentService.createPaymentIntent(eventId, sectionId, quantity, currency);
+      set({ isCreatingIntent: false });
+      return result;
+    } catch (error: any) {
+      logger.error('Failed to create payment intent:', error);
+      const errMsg = error?.message ?? 'Failed to initialize payment. Please try again.';
+      set({ intentError: errMsg, isCreatingIntent: false });
+      throw error;
+    }
+  },
+
+  confirmOrder: async (payload) => {
+    set({ isConfirmingOrder: true, confirmOrderError: null });
+    try {
+      const result = await paymentService.confirmOrder(payload);
+      set({ isConfirmingOrder: false });
+      return result;
+    } catch (error: any) {
+      logger.error('Failed to confirm order:', error);
+      const errMsg = error?.message ?? 'Failed to complete order booking. Please contact support.';
+      set({ confirmOrderError: errMsg, isConfirmingOrder: false });
+      throw error;
+    }
+  },
 }));

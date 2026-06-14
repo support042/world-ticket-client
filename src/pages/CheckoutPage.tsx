@@ -18,13 +18,18 @@ import {
 } from '@/components/ui/select'
 import { useCartStore } from '@/store/cartStore'
 import { useAuthStore } from '@/store/authStore'
+import { useTheme } from '@/components/ThemeProvider'
 import { usePaymentStore } from '@/store/paymentStore'
-import { formatCurrency, formatDate, formatTime } from '@/lib/utils'
+import { paymentService } from '@/services/payment.service'
+import { useOrdersStore } from '@/store/ordersStore'
+import { formatCurrency, formatDate, formatTime, calculateFees } from '@/lib/utils'
 import AuthForm from '@/components/auth/AuthForm'
 import type { CheckoutFormData, CheckoutFormErrors, FilterOption } from '@/types'
 import SectionDetailsDialog from '@/components/section/SectionDetailsDialog'
 import { toast } from 'sonner'
 import { logger } from '@/lib/logger'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 
 const countryCodes: FilterOption[] = [
   { value: '+1', label: 'US - 1' },
@@ -35,6 +40,16 @@ const countryCodes: FilterOption[] = [
   { value: '+52', label: 'MX - 52' },
   { value: '+55', label: 'BR - 55' },
 ]
+
+const getStripePublishableKey = (): string => {
+  const envKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+  if (!envKey || envKey.includes('REPLACE_WITH_REAL_KEY')) {
+    return 'pk_test_TYooMQauvdEDq54NiTphI7jx' // Stripe test key fallback
+  }
+  return envKey
+}
+
+const stripePromise = loadStripe(getStripePublishableKey())
 
 export default function CheckoutPage() {
   const navigate = useNavigate()
@@ -49,10 +64,10 @@ export default function CheckoutPage() {
     newsletterOptIn,
     setNewsletterOptIn,
     setContactInfo,
-    clearCart,
   } = useCartStore()
-  const { user, isAuthenticated } = useAuthStore()
-  const { initiatePayment, isInitiating } = usePaymentStore()
+  const { user, isAuthenticated, logout } = useAuthStore()
+  const { theme } = useTheme()
+  const { createPaymentIntent } = usePaymentStore()
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: user?.email ?? '',
@@ -67,10 +82,13 @@ export default function CheckoutPage() {
   const [showSectionDetails, setShowSectionDetails] = useState<boolean>(false)
   const [countdown, setCountdown] = useState<number>(599)
 
+  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null)
+  const [isInitializingPayment, setIsInitializingPayment] = useState<boolean>(false)
+
   // When we call clearCart() after a successful payment initiation, Zustand
   // clears selectedSection/selectedEvent, which would normally trigger the
   // "if no cart → navigate('/')" useEffect below. This ref lets us skip that
-  // guard when we are intentionally navigating away to /my-tickets.
+  // guard when we are intentionally navigating away.
   const isNavigatingAway = useRef(false)
 
   useEffect(() => {
@@ -105,6 +123,7 @@ export default function CheckoutPage() {
   if (!selectedEvent || !selectedSection) return null
 
   const subtotal = selectedSection.price * quantity
+  const fees = calculateFees(subtotal)
 
   const formatCountdown = (seconds: number): string => {
     const mins = Math.floor(seconds / 60)
@@ -120,12 +139,17 @@ export default function CheckoutPage() {
     if (!formData.lastName) newErrors.lastName = 'Last name is required'
     if (!formData.phone) newErrors.phone = 'Phone is required'
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+    const isValid = Object.keys(newErrors).length === 0
+    if (!isValid) {
+      toast.error('Please fill in all required contact information fields.')
+    }
+    return isValid
   }
 
-  // ── handleContinue (Stripe external-link flow) ───────────────────────────
   const handleContinue = async () => {
-    // ── Auth guard ──────────────────────────────────────────────────────────
+    console.log("Handled button clicked");
+    
     if (!isAuthenticated) {
       setShowAuthForm(true)
       setAuthMode('signin')
@@ -139,69 +163,29 @@ export default function CheckoutPage() {
     if (!validateForm()) return
 
     setContactInfo(formData)
+    setIsInitializingPayment(true)
 
-    const paymentLink = selectedSection?.paymentLink
-
-    if (paymentLink) {
-      // ── CRITICAL: Open the window SYNCHRONOUSLY in the click handler ──────
-      // Browsers treat window.open() called after an async/await as a delayed
-      // script (not a direct user gesture) and silently block the popup.
-      // By opening 'about:blank' here — before any await — the popup is always
-      // allowed. We then point the already-open window at the real URL once the
-      // API call succeeds.
-      const paymentWindow = window.open('', '_blank', 'noopener')
-
-      // Show a friendly loading screen in the new tab while the API runs
-      if (paymentWindow) {
-        paymentWindow.document.write(
-          '<!DOCTYPE html><html><head>' +
-          '<title>Preparing Checkout\u2026</title>' +
-          '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-          '<style>' +
-          '*{box-sizing:border-box;margin:0;padding:0}' +
-          'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;' +
-          'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-          'min-height:100vh;background:#f9fafb;color:#374151}' +
-          '.spinner{width:36px;height:36px;border:3px solid #e5e7eb;' +
-          'border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:20px}' +
-          '@keyframes spin{to{transform:rotate(360deg)}}' +
-          'h2{font-size:1.125rem;font-weight:600;margin-bottom:8px}' +
-          'p{font-size:.875rem;color:#6b7280}' +
-          '</style></head><body>' +
-          '<div class="spinner"></div>' +
-          '<h2>Preparing your secure checkout\u2026</h2>' +
-          '<p>Please wait while we confirm your reservation.</p>' +
-          '</body></html>'
-        )
-        paymentWindow.document.close()
-      }
-
-      try {
-        await initiatePayment(selectedSection!.id, paymentLink)
-
-        // Point the already-open tab at the real payment URL
-        if (paymentWindow && !paymentWindow.closed) {
-          paymentWindow.location.href = paymentLink
-        } else {
-          // Fallback: tab was somehow closed, try a fresh open
-          window.open(paymentLink, '_blank', 'noopener,noreferrer')
-        }
-
-        // ── Set flag BEFORE clearCart() ──────────────────────────────────
-        // clearCart() nulls out selectedSection/selectedEvent which triggers
-        // the useEffect guard on line ~87. Without this flag it would
-        // immediately fire navigate('/') and override our navigate below.
-        isNavigatingAway.current = true
-        clearCart()
-        navigate('/my-tickets')
-      } catch (err: any) {
-        // Close the blank loading tab so we don't leave it orphaned
-        if (paymentWindow && !paymentWindow.closed) paymentWindow.close()
-        logger.error('Failed to initiate payment tracking:', err)
-        toast.error(err?.message || 'Failed to initiate payment. Please try again.')
-      }
-    } else {
-      logger.warn('No paymentLink found on this section – no payment route configured.')
+    try {
+      logger.log('Initiating Stripe Payment Intent...')
+      const result = await createPaymentIntent(
+        selectedEvent.id,
+        selectedSection.id,
+        quantity,
+        'usd'
+      )
+      
+      setStripeClientSecret(result.clientSecret)
+      
+      // Scroll to payment card after mounting
+      setTimeout(() => {
+        const el = document.getElementById('payment-details-card')
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 150)
+    } catch (err: any) {
+      logger.error('Failed to create Stripe Payment Intent:', err)
+      toast.error(err?.message || 'Failed to initialize payment. Please try again.')
+    } finally {
+      setIsInitializingPayment(false)
     }
   }
 
@@ -275,7 +259,7 @@ export default function CheckoutPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {showAuthForm && !isAuthenticated ? (
-                  <div id="checkout-auth-form" className="border rounded-lg p-4">
+                  <div id="checkout-auth-form" className="border rounded-lg p-4 bg-slate-50/50">
                     <p className="text-sm font-semibold mb-3">
                       {authMode === 'signin' ? 'Sign in to continue' : 'Create an account to continue'}
                     </p>
@@ -284,34 +268,43 @@ export default function CheckoutPage() {
                       onToggleMode={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
                       onSuccess={() => {
                         setShowAuthForm(false)
-                        // After successful login, automatically proceed if form is valid
-                        setTimeout(() => handleContinue(), 100)
                       }}
                     />
                   </div>
-                ) : isAuthenticated && user ? (
-                  <div className="space-y-4 p-4 bg-muted rounded-lg">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Email</Label>
-                      <p className="font-medium">{user.email}</p>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Phone</Label>
-                      <p className="font-medium">
-                        {user.countryCode} {user.phone || formData.phone || 'Not provided'}
-                      </p>
-                    </div>
-                  </div>
                 ) : (
                   <>
+                    {isAuthenticated && user && (
+                      <div className="flex items-center justify-between p-3 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-100 text-sm">
+                        <span className="font-medium">Signed in as <strong className="font-bold text-emerald-950">{user.email}</strong></span>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 text-xs text-emerald-900 hover:text-emerald-955 hover:bg-emerald-100/80"
+                          onClick={() => {
+                            logout()
+                            setFormData({
+                              email: '',
+                              firstName: '',
+                              lastName: '',
+                              phone: '',
+                              countryCode: '+234'
+                            })
+                          }}
+                        >
+                          Sign Out
+                        </Button>
+                      </div>
+                    )}
+
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email">Email Address</Label>
                       <Input
                         id="email"
                         type="email"
                         value={formData.email}
                         onChange={(e) => handleChange('email', e.target.value)}
                         placeholder="you@example.com"
+                        disabled={isAuthenticated || stripeClientSecret !== null}
                       />
                       {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
                     </div>
@@ -324,6 +317,7 @@ export default function CheckoutPage() {
                           value={formData.firstName}
                           onChange={(e) => handleChange('firstName', e.target.value)}
                           placeholder="John"
+                          disabled={stripeClientSecret !== null}
                         />
                         {errors.firstName && <p className="text-xs text-destructive">{errors.firstName}</p>}
                       </div>
@@ -334,6 +328,7 @@ export default function CheckoutPage() {
                           value={formData.lastName}
                           onChange={(e) => handleChange('lastName', e.target.value)}
                           placeholder="Doe"
+                          disabled={stripeClientSecret !== null}
                         />
                         {errors.lastName && <p className="text-xs text-destructive">{errors.lastName}</p>}
                       </div>
@@ -345,6 +340,7 @@ export default function CheckoutPage() {
                         <Select
                           value={formData.countryCode}
                           onValueChange={(value) => handleChange('countryCode', value)}
+                          disabled={stripeClientSecret !== null}
                         >
                           <SelectTrigger className="w-[120px]">
                             <SelectValue />
@@ -364,6 +360,7 @@ export default function CheckoutPage() {
                           onChange={(e) => handleChange('phone', e.target.value)}
                           placeholder="Phone Number"
                           className="flex-1"
+                          disabled={stripeClientSecret !== null}
                         />
                       </div>
                       {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
@@ -374,6 +371,7 @@ export default function CheckoutPage() {
                         id="newsletter"
                         checked={newsletterOptIn}
                         onCheckedChange={(checked) => setNewsletterOptIn(checked as boolean)}
+                        disabled={stripeClientSecret !== null}
                       />
                       <Label htmlFor="newsletter" className="text-sm font-normal">
                         Please keep me updated by email about the latest news, great deals and special offers
@@ -386,7 +384,7 @@ export default function CheckoutPage() {
 
             {/* Gift Option */}
             <div className="relative">
-              <Card className={!isAuthenticated ? 'opacity-60 select-none' : ''}>
+              <Card className={!isAuthenticated ? 'opacity-60 select-none' : stripeClientSecret ? 'opacity-70' : ''}>
                 <CardHeader>
                   <CardTitle className="text-lg">Buying this as a gift?</CardTitle>
                 </CardHeader>
@@ -394,13 +392,14 @@ export default function CheckoutPage() {
                   <RadioGroup
                     value={giftOption ? 'yes' : 'no'}
                     onValueChange={(value) => setGiftOption(value === 'yes')}
+                    disabled={!isAuthenticated || stripeClientSecret !== null}
                   >
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="yes" id="gift-yes" disabled={!isAuthenticated} />
+                      <RadioGroupItem value="yes" id="gift-yes" disabled={!isAuthenticated || stripeClientSecret !== null} />
                       <Label htmlFor="gift-yes" className={!isAuthenticated ? 'text-muted-foreground' : ''}>Yes</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="no" id="gift-no" disabled={!isAuthenticated} />
+                      <RadioGroupItem value="no" id="gift-no" disabled={!isAuthenticated || stripeClientSecret !== null} />
                       <Label htmlFor="gift-no" className={!isAuthenticated ? 'text-muted-foreground' : ''}>No</Label>
                     </div>
                   </RadioGroup>
@@ -433,7 +432,7 @@ export default function CheckoutPage() {
             {/* Team Support */}
             {selectedEvent.teams && selectedEvent.teams.length > 0 && (
               <div className="relative">
-                <Card className={!isAuthenticated ? 'opacity-60 select-none' : ''}>
+                <Card className={!isAuthenticated ? 'opacity-60 select-none' : stripeClientSecret ? 'opacity-70' : ''}>
                   <CardHeader>
                     <CardTitle className="text-lg">Which team are you rooting for?</CardTitle>
                   </CardHeader>
@@ -441,11 +440,16 @@ export default function CheckoutPage() {
                     <RadioGroup
                       value={teamSupport ?? ''}
                       onValueChange={setTeamSupport}
+                      disabled={!isAuthenticated || stripeClientSecret !== null}
                     >
                       {selectedEvent.teams.map((team) => (
                         <div key={team.code} className="flex items-center space-x-2">
-                          <RadioGroupItem value={team.code} id={`team-${team.code}`} disabled={!isAuthenticated} />
-                          <Label htmlFor={`team-${team.code}`} className={`flex items-center gap-2 ${!isAuthenticated ? 'cursor-default text-muted-foreground' : 'cursor-pointer'}`}>
+                          <RadioGroupItem 
+                            value={team.code} 
+                            id={`team-${team.code}`} 
+                            disabled={!isAuthenticated || stripeClientSecret !== null} 
+                          />
+                          <Label htmlFor={`team-${team.code}`} className={`flex items-center gap-2 ${!isAuthenticated || stripeClientSecret !== null ? 'cursor-default text-muted-foreground' : 'cursor-pointer'}`}>
                             {team.flag?.startsWith('http') ? (
                               <img 
                                 src={team.flag} 
@@ -487,82 +491,101 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {/* ── Continue / Pay button ───────────────────────────────────────────
-                 If the section has a paymentLink we render a styled <a> that
-                 opens the Stripe-hosted page in a new tab.  We keep the <Button>
-                 as the fallback for sections without a paymentLink so nothing
-                 breaks for admins who haven't added a link yet.
-            ──────────────────────────────────────────────────────────────────── */}
-            {selectedSection?.paymentLink ? (
-              <a
-                href={selectedSection.paymentLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  // Validate + track before the browser follows the href
-                  e.preventDefault()
-                  handleContinue()
-                }}
-                className={
-                  [
-                    // Mirror the shadcn Button's base + size="lg" classes so it
-                    // looks identical to the original <Button>
-                    'inline-flex items-center justify-center gap-2 whitespace-nowrap',
-                    'rounded-md text-sm font-medium ring-offset-background',
-                    'transition-colors focus-visible:outline-none focus-visible:ring-2',
-                    'focus-visible:ring-ring focus-visible:ring-offset-2',
-                    'disabled:pointer-events-none disabled:opacity-50',
-                    // variant=default colours — muted when unauthenticated
-                    isAuthenticated
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                      : 'bg-muted text-muted-foreground border border-border',
-                    // size=lg padding
-                    'h-11 px-8',
-                    // full-width
-                    'w-full',
-                    // loading state
-                    isInitiating ? 'opacity-70 pointer-events-none' : '',
-                  ].join(' ')
-                }
-              >
-                {isInitiating ? (
-                  'Processing…'
-                ) : !isAuthenticated ? (
-                  <span className="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                    Sign in to Continue
-                  </span>
-                ) : (
-                  'Continue to Payment'
-                )}
-              </a>
-            ) : (
-              /* No paymentLink – fall back to the old Button (navigates nowhere
-                 until an admin adds a link or we re-enable our own Stripe page) */
-              <Button
-                className="w-full"
-                size="lg"
-                disabled={isInitiating}
-                variant={!isAuthenticated ? 'outline' : 'default'}
-                onClick={handleContinue}
-              >
-                {isInitiating ? (
-                  'Processing…'
-                ) : !isAuthenticated ? (
-                  <span className="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                    Sign in to Continue
-                  </span>
-                ) : (
-                  'Continue'
-                )}
-              </Button>
+            <div className="pt-2">
+              {stripeClientSecret ? (
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => {
+                    setStripeClientSecret(null)
+                  }}
+                >
+                  Edit Contact & Details
+                </Button>
+              ) : (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  disabled={isInitializingPayment}
+                  variant={!isAuthenticated ? 'outline' : 'default'}
+                  onClick={handleContinue}
+                >
+                  {isInitializingPayment ? (
+                    'Initializing secure payment…'
+                  ) : !isAuthenticated ? (
+                    <span className="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      Sign in to Continue
+                    </span>
+                  ) : (
+                    'Continue to Payment'
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {/* Inline Stripe Payment Form Card */}
+            {stripeClientSecret && (
+              <Card id="payment-details-card" className="border-primary/20 shadow-md">
+                <CardHeader>
+                  <CardTitle className="text-lg">Payment Details</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Secure payment processed by Stripe. Your tickets are held for you.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {stripeClientSecret.startsWith('pi_mock_') ? (
+                    <MockPaymentForm
+                      clientSecret={stripeClientSecret}
+                      totalAmount={fees.total}
+                      contactInfo={formData}
+                      eventId={selectedEvent.id}
+                      sectionId={selectedSection.id}
+                      quantity={quantity}
+                      giftOption={giftOption}
+                      teamSupport={teamSupport}
+                      onSuccess={() => {
+                        isNavigatingAway.current = true
+                      }}
+                    />
+                  ) : (
+                    <Elements 
+                      stripe={stripePromise} 
+                      options={{ 
+                        clientSecret: stripeClientSecret, 
+                        appearance: { 
+                          theme: theme === 'dark' ? 'night' : 'flat',
+                          variables: {
+                            colorPrimary: '#10b981',
+                            colorBackground: theme === 'dark' ? '#18181b' : '#ffffff',
+                            colorText: theme === 'dark' ? '#f4f4f5' : '#0f172a',
+                            colorDanger: '#ef4444',
+                            borderRadius: '8.4px',
+                          }
+                        } 
+                      }}
+                    >
+                      <InlinePaymentForm
+                        clientSecret={stripeClientSecret}
+                        totalAmount={fees.total}
+                        contactInfo={formData}
+                        eventId={selectedEvent.id}
+                        sectionId={selectedSection.id}
+                        quantity={quantity}
+                        giftOption={giftOption}
+                        teamSupport={teamSupport}
+                        onSuccess={() => {
+                          isNavigatingAway.current = true
+                        }}
+                      />
+                    </Elements>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </div>
 
@@ -636,17 +659,26 @@ export default function CheckoutPage() {
                     <span className="text-muted-foreground">Ticket price</span>
                     <span>{quantity} x {formatCurrency(selectedSection.price)}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Tax, handling fee, and booking fee not included
-                  </p>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Tax (8%)</span>
+                    <span>{formatCurrency(fees.tax)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Handling fee (2%)</span>
+                    <span>{formatCurrency(fees.handlingFee)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Booking fee (3%)</span>
+                    <span>{formatCurrency(fees.bookingFee)}</span>
+                  </div>
                 </div>
 
                 <Separator />
 
-                {/* Subtotal */}
+                {/* Total */}
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold">Subtotal</span>
-                  <span className="text-xl font-bold">{formatCurrency(subtotal)}</span>
+                  <span className="font-semibold">Total</span>
+                  <span className="text-xl font-bold">{formatCurrency(fees.total)}</span>
                 </div>
 
                 {/* Guarantees */}
@@ -687,5 +719,228 @@ export default function CheckoutPage() {
         eventTitle={selectedEvent.title}
       />
     </div>
+  )
+}
+
+interface PaymentFormProps {
+  clientSecret: string
+  totalAmount: number
+  contactInfo: CheckoutFormData
+  eventId: string
+  sectionId: string
+  quantity: number
+  giftOption: boolean
+  teamSupport: string | null
+  onSuccess: () => void
+}
+
+function MockPaymentForm({
+  clientSecret,
+  totalAmount,
+  contactInfo,
+  eventId,
+  sectionId,
+  quantity,
+  giftOption,
+  teamSupport,
+  onSuccess,
+}: PaymentFormProps) {
+  const navigate = useNavigate()
+  const { clearCart } = useCartStore()
+  const { addOrder } = useOrdersStore()
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [cardNumber, setCardNumber] = useState('4242 4242 4242 4242')
+  const [expiry, setExpiry] = useState('12/28')
+  const [cvc, setCvc] = useState('424')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsProcessing(true)
+
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+
+    try {
+      logger.log('MockPaymentForm - Confirming Mock Order...')
+      
+      const order = await paymentService.confirmOrder({
+        eventId,
+        sectionId,
+        quantity,
+        totalAmount,
+        paymentMethod: 'stripe_mock',
+        stripePaymentIntentId: clientSecret,
+        contactInfo: {
+          firstName: contactInfo.firstName,
+          lastName: contactInfo.lastName,
+          email: contactInfo.email,
+          phone: contactInfo.phone,
+          countryCode: contactInfo.countryCode,
+        },
+      })
+
+      addOrder(order)
+      onSuccess()
+      clearCart()
+      toast.success('Simulated payment successful!')
+      navigate(`/payment/success?order_id=${order.id}`)
+    } catch (err: any) {
+      logger.error('Mock payment confirmation failed:', err)
+      toast.error(err?.message || 'Failed to complete order. Please try again.')
+      setIsProcessing(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-amber-800 text-xs flex gap-2">
+        <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+        <div>
+          <span className="font-semibold block mb-0.5">Demo Stripe Sandbox</span>
+          Stripe is operating in simulated mode. No real cards will be charged.
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="mock-card-num" className="text-xs">Card Number</Label>
+          <Input
+            id="mock-card-num"
+            value={cardNumber}
+            onChange={(e) => setCardNumber(e.target.value)}
+            placeholder="4242 4242 4242 4242"
+            className="font-mono text-sm"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="mock-expiry" className="text-xs">Expiration Date</Label>
+            <Input
+              id="mock-expiry"
+              value={expiry}
+              onChange={(e) => setExpiry(e.target.value)}
+              placeholder="MM/YY"
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="mock-cvc" className="text-xs">CVC</Label>
+            <Input
+              id="mock-cvc"
+              value={cvc}
+              onChange={(e) => setCvc(e.target.value)}
+              placeholder="123"
+              className="font-mono text-sm"
+            />
+          </div>
+        </div>
+      </div>
+
+      <Button
+        type="submit"
+        disabled={isProcessing}
+        className="w-full flex items-center justify-center gap-2"
+        size="lg"
+      >
+        {isProcessing ? (
+          <>
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            Simulating Transaction...
+          </>
+        ) : (
+          `Pay ${formatCurrency(totalAmount)} (Simulated)`
+        )}
+      </Button>
+    </form>
+  )
+}
+
+function InlinePaymentForm({
+  clientSecret,
+  totalAmount,
+  contactInfo,
+  eventId,
+  sectionId,
+  quantity,
+  giftOption,
+  teamSupport,
+  onSuccess,
+}: PaymentFormProps) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!stripe || !elements) {
+      return
+    }
+
+    setIsProcessing(true)
+    setErrorMessage(null)
+
+    // Save pending order details in sessionStorage BEFORE confirming payment.
+    const pendingPayload = {
+      eventId,
+      sectionId,
+      quantity,
+      totalAmount,
+      paymentMethod: 'card',
+      contactInfo: {
+        firstName: contactInfo.firstName,
+        lastName: contactInfo.lastName,
+        email: contactInfo.email,
+        phone: contactInfo.phone,
+        countryCode: contactInfo.countryCode,
+      },
+      giftOption,
+      teamSupport,
+    }
+    sessionStorage.setItem('pending_order_payload', JSON.stringify(pendingPayload))
+
+    onSuccess() // sets isNavigatingAway to true
+
+    const returnUrl = `${window.location.origin}/payment/success`
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: returnUrl,
+      },
+    })
+
+    if (error) {
+      logger.error('Payment confirmation failed:', error)
+      setErrorMessage(error.message ?? 'An unexpected error occurred.')
+      setIsProcessing(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <PaymentElement />
+      {errorMessage && (
+        <div className="text-sm text-destructive font-medium bg-destructive/10 p-3 rounded-lg">
+          {errorMessage}
+        </div>
+      )}
+      <Button
+        type="submit"
+        disabled={!stripe || isProcessing}
+        className="w-full flex items-center justify-center gap-2"
+        size="lg"
+      >
+        {isProcessing ? (
+          <>
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            Processing Secure Payment...
+          </>
+        ) : (
+          `Pay ${formatCurrency(totalAmount)}`
+        )}
+      </Button>
+    </form>
   )
 }

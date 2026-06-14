@@ -110,7 +110,6 @@ export interface Section {
   ratingLabel?: string
   sectionImage?: string
   paymentLink?: string
-  isPaid?: boolean
 }
 
 export interface Event {
@@ -334,6 +333,7 @@ export interface SectionForm {
   isPopular: boolean
   isLowestPrice: boolean
   sectionImage: string
+  paymentLink?: string
 }
 
 export type DeleteTargetType = 'event' | 'section' | null
@@ -342,4 +342,71 @@ export interface DeleteTarget {
   type: DeleteTargetType
   id: string | null
   eventId: string | null
+}
+
+// ─── Stripe / Orders ─────────────────────────────────────────────────────────
+
+/** Status values that Stripe and our backend can produce for an order */
+export type OrderStatus = 'pending' | 'paid' | 'failed' | 'cancelled' | 'refunded' | 'completed' | 'processing'
+
+/** A single ticket associated with a paid order */
+export interface Ticket {
+  id: string
+  barcode: string        // QR code data / barcode string
+  seatNumber?: string    // optional: specific seat assignment
+  issuedAt?: string      // ISO timestamp when ticket was generated
+}
+
+/** Minimal event/section info embedded inside an Order (from the backend) */
+export interface OrderSection {
+  id: string
+  name: string
+  row: string
+  eventId?: string
+  eventTitle?: string
+  eventDate?: string
+  eventTime?: string
+  eventVenue?: string
+  eventCity?: string
+  eventCountry?: string
+}
+
+/** A fully resolved order as returned by GET /api/orders */
+export interface Order {
+  id: string
+  stripePaymentIntentId?: string
+  stripeSessionId?: string // legacy fallback
+  status: OrderStatus
+  quantity: number
+  subtotal?: number        // pre-fee subtotal
+  totalAmount: number     // what the user actually paid (including fees)
+  currency?: string        // 'usd' | 'gbp' etc.
+  event?: Event           // full event object from backend
+  section: Section | OrderSection // support both full Section and legacy OrderSection
+  contactInfo: ContactInfo
+  tickets?: Ticket[]      // optional: can be generated on frontend if missing
+  createdAt: string
+  updatedAt?: string
+}
+
+/** Payload returned by POST /api/checkout/intent */
+export interface CreatePaymentIntentResponse {
+  clientSecret: string
+  amount: number
+  currency: string
+}
+
+/** Legacy payload returned by POST /payments/create-checkout-session */
+export interface CreateCheckoutSessionResponse {
+  sessionId: string
+  checkoutUrl: string
+}
+
+/** Legacy payload returned by GET /payments/session/:sessionId (success-page verification) */
+export interface StripeSessionDetails {
+  sessionId: string
+  status: 'open' | 'complete' | 'expired'
+  amountTotal: number   // in cents — divide by 100 for display
+  currency: string
+  order: Order | null   // null if webhook hasn't fired yet
 }

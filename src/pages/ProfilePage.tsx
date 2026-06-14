@@ -25,7 +25,7 @@ export default function ProfilePage() {
   })
 
   const orders = user ? getUserOrders(user.id) : []
-  const completedOrders = orders.filter(o => o.status === 'completed')
+  const completedOrders = orders.filter(o => o.status === 'paid' || o.status === 'completed')
 
   const handleLogout = () => {
     logout()
