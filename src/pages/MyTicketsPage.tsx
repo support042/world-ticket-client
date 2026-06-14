@@ -221,14 +221,14 @@ export default function MyTicketsPage() {
 
                 {/* QR Cards Carousel / List */}
                 <div className="space-y-6">
-                  {selectedOrder.tickets.map((tkt, idx) => (
+                  {(selectedOrder.tickets || []).map((tkt, idx) => (
                     <div 
                       key={tkt.id}
                       className="border border-border rounded-xl p-4 bg-card flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden"
                     >
                       {/* Ticket Number badge */}
                       <Badge className="absolute top-3 left-3 bg-primary text-primary-foreground hover:bg-primary text-[9px] font-mono py-0.5 px-2">
-                        Ticket {idx + 1} of {selectedOrder.tickets.length}
+                        Ticket {idx + 1} of {(selectedOrder.tickets || []).length}
                       </Badge>
                       
                       {/* QR Rendering */}

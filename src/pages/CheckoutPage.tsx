@@ -570,7 +570,6 @@ export default function CheckoutPage() {
                       }}
                     >
                       <InlinePaymentForm
-                        clientSecret={stripeClientSecret}
                         totalAmount={fees.total}
                         contactInfo={formData}
                         eventId={selectedEvent.id}
@@ -723,7 +722,7 @@ export default function CheckoutPage() {
 }
 
 interface PaymentFormProps {
-  clientSecret: string
+  clientSecret?: string
   totalAmount: number
   contactInfo: CheckoutFormData
   eventId: string
@@ -741,8 +740,6 @@ function MockPaymentForm({
   eventId,
   sectionId,
   quantity,
-  giftOption,
-  teamSupport,
   onSuccess,
 }: PaymentFormProps) {
   const navigate = useNavigate()
@@ -769,7 +766,7 @@ function MockPaymentForm({
         quantity,
         totalAmount,
         paymentMethod: 'stripe_mock',
-        stripePaymentIntentId: clientSecret,
+        stripePaymentIntentId: clientSecret || 'mock_pi_default',
         contactInfo: {
           firstName: contactInfo.firstName,
           lastName: contactInfo.lastName,
@@ -856,7 +853,6 @@ function MockPaymentForm({
 }
 
 function InlinePaymentForm({
-  clientSecret,
   totalAmount,
   contactInfo,
   eventId,

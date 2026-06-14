@@ -219,6 +219,7 @@ export interface ContactInfo {
   lastName: string
   email: string
   phone: string
+  countryCode?: string
 }
 
 export interface OrderSummary {
@@ -374,6 +375,7 @@ export interface OrderSection {
 /** A fully resolved order as returned by GET /api/orders */
 export interface Order {
   id: string
+  userId?: string
   stripePaymentIntentId?: string
   stripeSessionId?: string // legacy fallback
   status: OrderStatus

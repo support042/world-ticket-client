@@ -6,8 +6,15 @@ import { Badge } from '@/components/ui/badge'
 export default function TicketCard({ order }: { order: Order }) {
   const { section, quantity, contactInfo, id } = order
   const now = new Date()
-  const eventDate = section.eventDate && section.eventTime 
-    ? new Date(`${section.eventDate}T${section.eventTime}`) 
+  
+  const eventTitle = order.event?.title || (section as any).eventTitle || 'World Cup Match'
+  const eventDateStr = order.event?.date || (section as any).eventDate
+  const eventTimeStr = order.event?.time || (section as any).eventTime
+  const eventVenue = order.event?.venue || (section as any).eventVenue || 'TBD Stadium'
+  const eventCity = order.event?.city || (section as any).eventCity || 'Qatar'
+  
+  const eventDate = eventDateStr && eventTimeStr 
+    ? new Date(`${eventDateStr}T${eventTimeStr}`) 
     : now
   const isPast = eventDate < now
 
@@ -38,7 +45,7 @@ export default function TicketCard({ order }: { order: Order }) {
            <div className="absolute inset-0 bg-linear-to-t from-background via-background/40 to-black/20 bg-slate-900" />
            <div className="absolute bottom-3 left-6 right-6">
              <div className="text-[9px] font-black tracking-[0.2em] text-primary uppercase mb-0.5 opacity-95">FIFA WORLD CUP</div>
-             <div className="text-lg font-black leading-none truncate tracking-tight text-white">{section.eventTitle || 'World Cup Match'}</div>
+             <div className="text-lg font-black leading-none truncate tracking-tight text-white">{eventTitle}</div>
            </div>
         </div>
 
@@ -57,15 +64,15 @@ export default function TicketCard({ order }: { order: Order }) {
                <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest font-black text-muted-foreground/60">
                   <CalendarDays className="w-2.5 h-2.5" /> Date
                </div>
-               <div className="text-xs font-bold leading-tight">{section.eventDate ? formatDate(section.eventDate) : 'TBD'}</div>
-               <div className="text-[10px] text-muted-foreground font-medium">{section.eventTime ? formatTime(section.eventTime) : 'TBD'}</div>
+               <div className="text-xs font-bold leading-tight">{eventDateStr ? formatDate(eventDateStr) : 'TBD'}</div>
+               <div className="text-[10px] text-muted-foreground font-medium">{eventTimeStr ? formatTime(eventTimeStr) : 'TBD'}</div>
             </div>
             <div className="space-y-0.5">
                <div className="flex items-center gap-1 text-[9px] uppercase tracking-widest font-black text-muted-foreground/60">
                   <MapPin className="w-2.5 h-2.5" /> Venue
                </div>
-               <div className="text-xs font-bold leading-tight truncate">{section.eventVenue || 'TBD Stadium'}</div>
-               <div className="text-[10px] text-muted-foreground font-medium truncate">{section.eventCity || 'Qatar'}</div>
+               <div className="text-xs font-bold leading-tight truncate">{eventVenue}</div>
+               <div className="text-[10px] text-muted-foreground font-medium truncate">{eventCity}</div>
             </div>
           </div>
 

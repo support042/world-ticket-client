@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShoppingBag, Search, Loader2, CheckCircle, ExternalLink, RefreshCw, AlertCircle } from 'lucide-react'
+import { ArrowLeft, ShoppingBag, Search, Loader2, RefreshCw, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -241,7 +241,7 @@ export default function AdminPaymentsPage() {
                             {record.stripePaymentIntentId || record.stripeSessionId || 'N/A'}
                           </td>
                           <td className="p-4 sm:p-5 text-right font-semibold text-sm">
-                            {record.totalAmount ? `${record.section?.currency || 'USD'} ${(record.totalAmount).toLocaleString()}` : 'N/A'}
+                            {record.totalAmount ? `${(record.currency || (record.section as any).currency || 'USD').toUpperCase()} ${(record.totalAmount).toLocaleString()}` : 'N/A'}
                           </td>
                         </tr>
                       )
