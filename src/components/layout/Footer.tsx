@@ -66,7 +66,7 @@ export default function Footer() {
         <div className="flex flex-col items-center justify-between gap-4 pt-8 border-t md:flex-row">
           <div className="flex items-center gap-2">
             <span className="text-xl font-bold text-primary">ticket</span>
-            <span className="text-xl font-bold">hub</span>
+            <span className="text-xl font-bold">apoint</span>
           </div>
           <p className="text-sm text-muted-foreground text-center">
             Every order is 100% guaranteed

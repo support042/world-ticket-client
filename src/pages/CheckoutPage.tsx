@@ -77,13 +77,13 @@ export default function CheckoutPage() {
     countryCode: user?.countryCode ?? '+234'
   })
   const [errors, setErrors] = useState<CheckoutFormErrors>({})
-  const [showAuthForm, setShowAuthForm] = useState<boolean>(false)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin')
   const [showSectionDetails, setShowSectionDetails] = useState<boolean>(false)
   const [countdown, setCountdown] = useState<number>(599)
 
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null)
   const [isInitializingPayment, setIsInitializingPayment] = useState<boolean>(false)
+  const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false)
 
   // When we call clearCart() after a successful payment initiation, Zustand
   // clears selectedSection/selectedEvent, which would normally trigger the
@@ -148,10 +148,9 @@ export default function CheckoutPage() {
   }
 
   const handleContinue = async () => {
-    console.log("Handled button clicked");
+    // console.log("Handled button clicked");
     
     if (!isAuthenticated) {
-      setShowAuthForm(true)
       setAuthMode('signin')
       setTimeout(() => {
         const el = document.getElementById('checkout-auth-form')
@@ -160,7 +159,12 @@ export default function CheckoutPage() {
       return
     }
 
-    if (!validateForm()) return
+    if (!validateForm()) {
+      if (isAuthenticated) {
+        setIsEditingDetails(true)
+      }
+      return
+    }
 
     setContactInfo(formData)
     setIsInitializingPayment(true)
@@ -239,134 +243,207 @@ export default function CheckoutPage() {
             <h1 className="text-2xl font-bold">Checkout</h1>
 
             {/* Contact Information */}
-            <Card>
+            <Card id="checkout-auth-form">
               <CardHeader>
-                <CardTitle className="text-lg">Contact information</CardTitle>
+                <CardTitle className="text-lg">
+                  {isAuthenticated ? 'Contact Information' : 'Account & Contact Information'}
+                </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {"We'll use this information to send you updates on your order."}
+                  {isAuthenticated 
+                    ? "We'll use this information to send you updates on your order."
+                    : "Please sign in or create an account to continue with your purchase."
+                  }
                 </p>
-                {!isAuthenticated && (
-                  <p className="text-sm">
-                    Have an account?{' '}
-                    <button
-                      onClick={() => setShowAuthForm(!showAuthForm)}
-                      className="text-primary hover:underline font-medium"
-                    >
-                      Sign in
-                    </button>
-                  </p>
-                )}
               </CardHeader>
               <CardContent className="space-y-4">
-                {showAuthForm && !isAuthenticated ? (
-                  <div id="checkout-auth-form" className="border rounded-lg p-4 bg-slate-50/50">
-                    <p className="text-sm font-semibold mb-3">
+                {!isAuthenticated ? (
+                  <div className="border rounded-xl p-4 bg-muted/10 border-border">
+                    <p className="text-sm font-semibold mb-4">
                       {authMode === 'signin' ? 'Sign in to continue' : 'Create an account to continue'}
                     </p>
                     <AuthForm
                       mode={authMode}
                       onToggleMode={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
                       onSuccess={() => {
-                        setShowAuthForm(false)
+                        // Handled automatically via Zustand auth store updates
                       }}
                     />
                   </div>
                 ) : (
                   <>
-                    {isAuthenticated && user && (
-                      <div className="flex items-center justify-between p-3 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-100 text-sm">
-                        <span className="font-medium">Signed in as <strong className="font-bold text-emerald-950">{user.email}</strong></span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-7 text-xs text-emerald-900 hover:text-emerald-955 hover:bg-emerald-100/80"
-                          onClick={() => {
-                            logout()
-                            setFormData({
-                              email: '',
-                              firstName: '',
-                              lastName: '',
-                              phone: '',
-                              countryCode: '+234'
-                            })
-                          }}
-                        >
-                          Sign Out
-                        </Button>
+                    {isAuthenticated && user && !isEditingDetails ? (
+                      <div className="rounded-xl border border-border bg-muted/20 p-5 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-border">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm border border-primary/20">
+                              {(formData.firstName?.[0] || user.firstName?.[0] || 'U').toUpperCase()}
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-foreground">
+                                {formData.firstName || user.firstName} {formData.lastName || user.lastName}
+                              </h4>
+                              <p className="text-xs text-muted-foreground">Logged-in customer</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            {/* <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs rounded-lg px-3"
+                              onClick={() => setIsEditingDetails(true)}
+                              disabled={stripeClientSecret !== null}
+                            >
+                              Edit details
+                            </Button> */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs text-destructive hover:bg-destructive/10 rounded-lg px-3"
+                              onClick={() => {
+                                logout()
+                                setFormData({
+                                  email: '',
+                                  firstName: '',
+                                  lastName: '',
+                                  phone: '',
+                                  countryCode: '+234'
+                                })
+                                setIsEditingDetails(false)
+                              }}
+                            >
+                              Sign Out
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                          <div className="space-y-1">
+                            <span className="text-muted-foreground font-medium">Email Address</span>
+                            <p className="font-medium text-foreground text-sm">{formData.email || user.email}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-muted-foreground font-medium">Phone Number</span>
+                            <p className="font-medium text-foreground text-sm">
+                              {formData.phone ? `${formData.countryCode} ${formData.phone}` : 'Not provided'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {isAuthenticated && user && (
+                          <div className="flex items-center justify-between p-3 bg-muted/40 text-muted-foreground rounded-lg border border-border text-sm">
+                            <span className="font-medium">Signed in as <strong className="font-bold text-foreground">{user.email}</strong></span>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                              onClick={() => {
+                                logout()
+                                setFormData({
+                                  email: '',
+                                  firstName: '',
+                                  lastName: '',
+                                  phone: '',
+                                  countryCode: '+234'
+                                })
+                                setIsEditingDetails(false)
+                              }}
+                            >
+                              Sign Out
+                            </Button>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label htmlFor="email">Email Address</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => handleChange('email', e.target.value)}
+                            placeholder="you@example.com"
+                            disabled={isAuthenticated || stripeClientSecret !== null}
+                          />
+                          {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="firstName">First Name</Label>
+                            <Input
+                              id="firstName"
+                              value={formData.firstName}
+                              onChange={(e) => handleChange('firstName', e.target.value)}
+                              placeholder="John"
+                              disabled={stripeClientSecret !== null}
+                            />
+                            {errors.firstName && <p className="text-xs text-destructive">{errors.firstName}</p>}
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="lastName">Last Name</Label>
+                            <Input
+                              id="lastName"
+                              value={formData.lastName}
+                              onChange={(e) => handleChange('lastName', e.target.value)}
+                              placeholder="Doe"
+                              disabled={stripeClientSecret !== null}
+                            />
+                            {errors.lastName && <p className="text-xs text-destructive">{errors.lastName}</p>}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="phone">Phone Number</Label>
+                          <div className="flex gap-2">
+                            <Select
+                              value={formData.countryCode}
+                              onValueChange={(value) => handleChange('countryCode', value)}
+                              disabled={stripeClientSecret !== null}
+                            >
+                              <SelectTrigger className="w-[120px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {countryCodes.map((c) => (
+                                  <SelectItem key={c.value} value={c.value}>
+                                    {c.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              id="phone"
+                              type="tel"
+                              value={formData.phone}
+                              onChange={(e) => handleChange('phone', e.target.value)}
+                              placeholder="Phone Number"
+                              className="flex-1"
+                              disabled={stripeClientSecret !== null}
+                            />
+                          </div>
+                          {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
+                        </div>
+
+                        {isAuthenticated && (
+                          <div className="flex justify-end pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (validateForm()) {
+                                  setIsEditingDetails(false)
+                                }
+                              }}
+                            >
+                              Save Details
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => handleChange('email', e.target.value)}
-                        placeholder="you@example.com"
-                        disabled={isAuthenticated || stripeClientSecret !== null}
-                      />
-                      {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="firstName">First Name</Label>
-                        <Input
-                          id="firstName"
-                          value={formData.firstName}
-                          onChange={(e) => handleChange('firstName', e.target.value)}
-                          placeholder="John"
-                          disabled={stripeClientSecret !== null}
-                        />
-                        {errors.firstName && <p className="text-xs text-destructive">{errors.firstName}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lastName">Last Name</Label>
-                        <Input
-                          id="lastName"
-                          value={formData.lastName}
-                          onChange={(e) => handleChange('lastName', e.target.value)}
-                          placeholder="Doe"
-                          disabled={stripeClientSecret !== null}
-                        />
-                        {errors.lastName && <p className="text-xs text-destructive">{errors.lastName}</p>}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <div className="flex gap-2">
-                        <Select
-                          value={formData.countryCode}
-                          onValueChange={(value) => handleChange('countryCode', value)}
-                          disabled={stripeClientSecret !== null}
-                        >
-                          <SelectTrigger className="w-[120px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {countryCodes.map((c) => (
-                              <SelectItem key={c.value} value={c.value}>
-                                {c.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          id="phone"
-                          type="tel"
-                          value={formData.phone}
-                          onChange={(e) => handleChange('phone', e.target.value)}
-                          placeholder="Phone Number"
-                          className="flex-1"
-                          disabled={stripeClientSecret !== null}
-                        />
-                      </div>
-                      {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
-                    </div>
-
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 pt-2">
                       <Checkbox
                         id="newsletter"
                         checked={newsletterOptIn}
@@ -471,7 +548,6 @@ export default function CheckoutPage() {
                   <div
                     className="absolute inset-0 rounded-xl flex items-center justify-center cursor-pointer z-10"
                     onClick={() => {
-                      setShowAuthForm(true)
                       setAuthMode('signin')
                       setTimeout(() => {
                         const el = document.getElementById('checkout-auth-form')
