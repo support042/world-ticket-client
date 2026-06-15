@@ -487,7 +487,6 @@ export default function CheckoutPage() {
                 <div
                   className="absolute inset-0 rounded-xl flex items-center justify-center cursor-pointer z-10"
                   onClick={() => {
-                    setShowAuthForm(true)
                     setAuthMode('signin')
                     setTimeout(() => {
                       const el = document.getElementById('checkout-auth-form')
