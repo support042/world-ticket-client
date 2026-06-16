@@ -122,7 +122,14 @@ export const paymentService = {
       }
       throw new Error('Failed to parse confirmed order from server response');
     } catch (error: any) {
-      logger.warn('Backend POST /orders failed. Reconstructing mock order locally.', error);
+      logger.error('Backend POST /orders failed.', error);
+
+      // If this is a real transaction (does not start with 'pi_mock_'), propagate the error
+      if (payload.stripePaymentIntentId && !payload.stripePaymentIntentId.startsWith('pi_mock_')) {
+        throw error;
+      }
+
+      logger.warn('Reconstructing mock order locally for mock transaction.', error);
 
       // Reconstruct mock order details
       const mockOrder: Order = {
